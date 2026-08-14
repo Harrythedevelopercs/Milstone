@@ -18,7 +18,8 @@ export async function postBankLedgerEntry(
       | "THIRD_PARTY_SETTLEMENT"
       | "EXPENSE"
       | "INTERNAL_TRANSFER"
-      | "MANUAL";
+      | "MANUAL"
+      | "ADJUSTMENT";
     sourceId: string;
     description: string;
     createdById: string;
