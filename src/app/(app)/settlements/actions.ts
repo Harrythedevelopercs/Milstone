@@ -2,6 +2,7 @@
 
 import Decimal from "decimal.js";
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit-log";
@@ -96,5 +97,216 @@ export async function createSettlementBatch(input: unknown): Promise<ActionResul
 
   revalidatePath("/settlements");
   revalidatePath("/transactions");
+  return { ok: true };
+}
+
+// Transactions still exactly CLIENT_PAYABLE and pointing at this batch are
+// safe to move -- nothing else has touched them since batching. Anything
+// else (paid, refunded, charged back, manually edited since) is left
+// alone; the caller decides whether that's a hard block or just excluded.
+async function findUntouchedBatchTransactionIds(
+  tx: Prisma.TransactionClient,
+  batchId: string
+): Promise<{ untouchedIds: string[]; touched: { id: string; status: string }[] }> {
+  const current = await tx.transaction.findMany({
+    where: { settlementBatchId: batchId },
+    select: { id: true, status: true },
+  });
+  const untouchedIds = current.filter((t) => t.status === "CLIENT_PAYABLE").map((t) => t.id);
+  const touched = current.filter((t) => t.status !== "CLIENT_PAYABLE");
+  return { untouchedIds, touched };
+}
+
+export async function updateSettlementBatch(id: string, input: unknown): Promise<ActionResult> {
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const parsed = settlementBatchSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  const existing = await prisma.settlementBatch.findUnique({ where: { id } });
+  if (!existing) return { ok: false, error: "Settlement batch not found." };
+
+  const monthError = await assertMonthOpen(existing.accountingMonth);
+  if (monthError) return { ok: false, error: monthError };
+
+  const depositDate = new Date(d.depositDate);
+  if (Number.isNaN(depositDate.getTime())) return { ok: false, error: "Invalid deposit date." };
+  const accountingMonth = accountingMonthOf(depositDate);
+  if (accountingMonth !== existing.accountingMonth) {
+    const newMonthError = await assertMonthOpen(accountingMonth);
+    if (newMonthError) return { ok: false, error: newMonthError };
+  }
+
+  const bankAccount = await prisma.bankAccount.findUnique({ where: { id: d.bankAccountId } });
+  if (!bankAccount || !bankAccount.active) return { ok: false, error: "Bank account not found or inactive." };
+
+  const result = await prisma.$transaction(async (tx) => {
+    const { untouchedIds, touched } = await findUntouchedBatchTransactionIds(tx, id);
+    const currentIds = new Set([...untouchedIds, ...touched.map((t) => t.id)]);
+    const requestedIds = new Set(d.transactionIds);
+
+    // Can't remove a transaction that's moved on since batching.
+    const wouldRemoveTouched = touched.filter((t) => !requestedIds.has(t.id));
+    if (wouldRemoveTouched.length > 0) {
+      throw new Error(
+        `Cannot remove ${wouldRemoveTouched.map((t) => t.id).join(", ")} -- already ${wouldRemoveTouched[0].status.toLowerCase()} since this batch was created.`
+      );
+    }
+
+    const toAdd = d.transactionIds.filter((tid) => !currentIds.has(tid));
+    const toRemove = untouchedIds.filter((tid) => !requestedIds.has(tid));
+
+    if (toAdd.length > 0) {
+      const addCandidates = await tx.transaction.findMany({
+        where: { id: { in: toAdd } },
+        select: { id: true, merchantId: true, status: true, settlementBatchId: true },
+      });
+      if (addCandidates.length !== toAdd.length) {
+        throw new Error("One or more added transactions could not be found.");
+      }
+      const invalid = addCandidates.find(
+        (t) => t.merchantId !== existing.merchantId || t.status !== "APPROVED" || t.settlementBatchId !== null
+      );
+      if (invalid) {
+        throw new Error(`Transaction ${invalid.id} is not an unsettled, approved transaction for this merchant.`);
+      }
+      await tx.transaction.updateMany({
+        where: { id: { in: toAdd } },
+        data: { settlementBatchId: id, status: "CLIENT_PAYABLE" },
+      });
+    }
+
+    if (toRemove.length > 0) {
+      await tx.transaction.updateMany({
+        where: { id: { in: toRemove } },
+        data: { settlementBatchId: null, status: "APPROVED" },
+      });
+    }
+
+    const finalTxns = await tx.transaction.findMany({
+      where: { settlementBatchId: id },
+      select: { expectedSettlement: true },
+    });
+    const expectedAmount = finalTxns.reduce(
+      (sum, t) => sum.plus(t.expectedSettlement),
+      new Decimal(0)
+    );
+    const differenceAmount = new Decimal(d.depositAmount).minus(expectedAmount);
+
+    const updated = await tx.settlementBatch.update({
+      where: { id },
+      data: {
+        bankAccountId: d.bankAccountId,
+        depositDate,
+        accountingMonth,
+        depositAmount: d.depositAmount,
+        expectedAmount: expectedAmount.toFixed(2),
+        differenceAmount: differenceAmount.toFixed(2),
+        status: differenceAmount.isZero() ? "RECONCILED" : "DIFFERENCE",
+        notes: d.notes || null,
+      },
+    });
+
+    // Bank Ledger is a shared, multi-source running balance -- never
+    // rewrite the existing row. Reverse it and post a fresh one whenever
+    // the amount, bank, or month actually changed.
+    const ledgerRelevantChange =
+      !new Decimal(existing.depositAmount).equals(d.depositAmount) ||
+      existing.bankAccountId !== d.bankAccountId ||
+      existing.accountingMonth !== accountingMonth;
+    if (ledgerRelevantChange) {
+      await postBankLedgerEntry(tx, {
+        bankAccountId: existing.bankAccountId,
+        amount: new Decimal(existing.depositAmount).negated().toFixed(2),
+        entryDate: existing.depositDate,
+        accountingMonth: existing.accountingMonth,
+        sourceType: "SETTLEMENT_BATCH",
+        sourceId: id,
+        description: `Correction: edit to settlement batch ${id} (reversing prior deposit)`,
+        createdById: user.id,
+      });
+      await postBankLedgerEntry(tx, {
+        bankAccountId: d.bankAccountId,
+        amount: d.depositAmount,
+        entryDate: depositDate,
+        accountingMonth,
+        sourceType: "SETTLEMENT_BATCH",
+        sourceId: id,
+        description: `Correction: edit to settlement batch ${id} (new deposit)`,
+        createdById: user.id,
+      });
+    }
+
+    await writeAuditLog(tx, {
+      entityType: "SettlementBatch",
+      entityId: id,
+      action: "UPDATE",
+      performedById: user.id,
+      beforeSnapshot: { ...JSON.parse(JSON.stringify(existing)), transactionIds: Array.from(currentIds) },
+      afterSnapshot: { ...JSON.parse(JSON.stringify(updated)), transactionIds: d.transactionIds },
+    });
+
+    return updated;
+  }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : "Failed to update settlement batch." }));
+
+  if ("error" in result) return { ok: false, error: result.error };
+
+  revalidatePath("/settlements");
+  revalidatePath("/transactions");
+  revalidatePath("/merchant-reconciliation");
+  revalidatePath("/");
+  return { ok: true };
+}
+
+export async function deleteSettlementBatch(id: string): Promise<ActionResult> {
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+
+  const existing = await prisma.settlementBatch.findUnique({ where: { id } });
+  if (!existing) return { ok: false, error: "Settlement batch not found." };
+
+  const monthError = await assertMonthOpen(existing.accountingMonth);
+  if (monthError) return { ok: false, error: monthError };
+
+  const result = await prisma.$transaction(async (tx) => {
+    const { untouchedIds, touched } = await findUntouchedBatchTransactionIds(tx, id);
+    if (touched.length > 0) {
+      throw new Error(
+        `Cannot delete -- ${touched.map((t) => `${t.id} (${t.status.toLowerCase()})`).join(", ")} already moved on since this batch was created.`
+      );
+    }
+
+    await tx.transaction.updateMany({
+      where: { id: { in: untouchedIds } },
+      data: { settlementBatchId: null, status: "APPROVED" },
+    });
+
+    await postBankLedgerEntry(tx, {
+      bankAccountId: existing.bankAccountId,
+      amount: new Decimal(existing.depositAmount).negated().toFixed(2),
+      entryDate: existing.depositDate,
+      accountingMonth: existing.accountingMonth,
+      sourceType: "SETTLEMENT_BATCH",
+      sourceId: id,
+      description: `Reversal: settlement batch ${id} deleted`,
+      createdById: user.id,
+    });
+
+    await writeAuditLog(tx, {
+      entityType: "SettlementBatch",
+      entityId: id,
+      action: "DELETE",
+      performedById: user.id,
+      beforeSnapshot: { ...JSON.parse(JSON.stringify(existing)), transactionIds: untouchedIds },
+    });
+
+    await tx.settlementBatch.delete({ where: { id } });
+  }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : "Failed to delete settlement batch." }));
+
+  if (result && "error" in result) return { ok: false, error: result.error };
+
+  revalidatePath("/settlements");
+  revalidatePath("/transactions");
+  revalidatePath("/merchant-reconciliation");
+  revalidatePath("/");
   return { ok: true };
 }

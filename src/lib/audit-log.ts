@@ -13,7 +13,8 @@ export type AuditAction =
   | "REFUND"
   | "CHARGEBACK"
   | "VOID"
-  | "UPDATE";
+  | "UPDATE"
+  | "DELETE";
 
 export async function writeAuditLog(
   tx: Prisma.TransactionClient,

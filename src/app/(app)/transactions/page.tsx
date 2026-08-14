@@ -71,7 +71,7 @@ export default async function TransactionsPage() {
         </Link>
       </div>
 
-      <BulkSettleToolbar merchants={merchants} />
+      <BulkSettleToolbar merchants={merchantOptions} />
 
       <div className="overflow-x-auto rounded-md border">
         <Table>

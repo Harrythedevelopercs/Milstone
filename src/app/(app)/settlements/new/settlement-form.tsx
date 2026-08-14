@@ -29,7 +29,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { settlementBatchSchema, type SettlementBatchFormValues } from "../schema";
-import { createSettlementBatch } from "../actions";
+import { createSettlementBatch, updateSettlementBatch } from "../actions";
 
 export type Option = { id: string; name: string };
 export type UnsettledTransaction = {
@@ -39,22 +39,32 @@ export type UnsettledTransaction = {
   paymentMethodName: string;
   grossAmount: string;
   expectedSettlement: string;
+  locked?: boolean;
+  lockedReason?: string;
 };
 
 export function SettlementForm({
   merchants,
   bankAccounts,
   unsettledTransactions,
+  editingId,
+  defaultValues: providedDefaultValues,
+  onSuccess,
+  hideChrome = false,
 }: {
   merchants: Option[];
   bankAccounts: Option[];
+  editingId?: string;
+  defaultValues?: SettlementBatchFormValues;
+  onSuccess?: () => void;
+  hideChrome?: boolean;
   unsettledTransactions: UnsettledTransaction[];
 }) {
   const router = useRouter();
   const { run, isPending } = useCrudAction();
   const form = useForm<SettlementBatchFormValues>({
     resolver: zodResolver(settlementBatchSchema),
-    defaultValues: {
+    defaultValues: providedDefaultValues ?? {
       merchantId: "",
       bankAccountId: "",
       depositDate: format(new Date(), "yyyy-MM-dd"),
@@ -86,7 +96,8 @@ export function SettlementForm({
       ? new Decimal(depositAmount).minus(expectedTotal)
       : null;
 
-  function toggleTransaction(id: string, checked: boolean) {
+  function toggleTransaction(id: string, checked: boolean, locked?: boolean) {
+    if (locked) return;
     const current = form.getValues("transactionIds");
     form.setValue(
       "transactionIds",
@@ -97,10 +108,16 @@ export function SettlementForm({
   function onSubmit(values: SettlementBatchFormValues) {
     run(
       async () => {
-        const result = await createSettlementBatch(values);
+        const result = editingId
+          ? await updateSettlementBatch(editingId, values)
+          : await createSettlementBatch(values);
         if (result.ok) {
-          toast.success("Settlement batch created");
-          router.push("/settlements");
+          toast.success(editingId ? "Settlement batch updated" : "Settlement batch created");
+          if (editingId) {
+            onSuccess?.();
+          } else {
+            router.push("/settlements");
+          }
           return { ok: true };
         }
         return result;
@@ -109,13 +126,8 @@ export function SettlementForm({
     );
   }
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>New Settlement Batch</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
+  const formBody = (
+    <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <FormField
@@ -123,7 +135,7 @@ export function SettlementForm({
                 name="merchantId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Merchant</FormLabel>
+                    <FormLabel>Merchant{editingId ? " (locked)" : ""}</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={(v) => {
@@ -131,6 +143,7 @@ export function SettlementForm({
                         form.setValue("transactionIds", []);
                       }}
                       items={merchants.map((m) => ({ value: m.id, label: m.name }))}
+                      disabled={!!editingId}
                     >
                       <FormControl>
                         <SelectTrigger className="w-full">
@@ -225,12 +238,16 @@ export function SettlementForm({
                         <div className="flex items-center gap-2">
                           <Checkbox
                             checked={selectedIds.includes(t.id)}
-                            onCheckedChange={(checked) => toggleTransaction(t.id, !!checked)}
+                            disabled={t.locked}
+                            onCheckedChange={(checked) => toggleTransaction(t.id, !!checked, t.locked)}
                           />
                           <span className="font-mono text-xs">{t.id}</span>
                           <span className="text-muted-foreground">
                             {t.clientName} · {t.paymentMethodName}
                           </span>
+                          {t.locked && (
+                            <span className="text-xs text-muted-foreground">({t.lockedReason})</span>
+                          )}
                         </div>
                         <span>{t.expectedSettlement}</span>
                       </label>
@@ -268,11 +285,20 @@ export function SettlementForm({
             />
 
             <Button type="submit" disabled={isPending} className="w-full">
-              {isPending ? "Saving..." : "Create Settlement Batch"}
+              {isPending ? "Saving..." : editingId ? "Save Changes" : "Create Settlement Batch"}
             </Button>
           </form>
-        </Form>
-      </CardContent>
+    </Form>
+  );
+
+  if (hideChrome) return formBody;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>New Settlement Batch</CardTitle>
+      </CardHeader>
+      <CardContent>{formBody}</CardContent>
     </Card>
   );
 }
