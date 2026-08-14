@@ -65,7 +65,7 @@ export default async function ClientExternalStatementPage({
 
       <div>
         <p className="text-sm text-muted-foreground">
-          {balance >= 0 ? "Balance due to you" : "Balance you owe FoundaPay"}
+          {balance >= 0 ? "Balance due to you" : "Advanced / Owed to FoundaPay"}
         </p>
         <p className="text-3xl font-semibold">{Math.abs(balance).toFixed(2)}</p>
       </div>

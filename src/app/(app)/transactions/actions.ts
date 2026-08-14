@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit-log";
@@ -115,6 +116,105 @@ export async function rejectTransaction(id: string, reason: string): Promise<Rev
 
   revalidatePath("/transactions");
   return { ok: true };
+}
+
+// Manual, per-transaction settlement marker. Independent of the SettlementBatch
+// flow (settlements/actions.ts) -- that's a heavier, formal bank-deposit
+// reconciliation path that sets status to CLIENT_PAYABLE. This is a lightweight
+// "I know this settled on date X" marker for transactions not going through a
+// batch. Does not touch ClientLedger: payout eligibility is governed separately
+// by PAYABLE_TRANSACTION_STATUSES, which already includes APPROVED, so marking
+// settled here is for visibility/reporting, not to unlock anything.
+export async function markTransactionSettled(
+  id: string,
+  settlementDate: string
+): Promise<ReviewResult> {
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const date = new Date(settlementDate);
+  if (Number.isNaN(date.getTime())) return { ok: false, error: "Invalid settlement date." };
+  const txn = await prisma.transaction.findUnique({ where: { id } });
+  if (!txn) return { ok: false, error: "Transaction not found." };
+  if (txn.status !== "APPROVED") {
+    return { ok: false, error: `Cannot mark settled a transaction with status ${txn.status}.` };
+  }
+  const monthError = await assertMonthOpen(txn.accountingMonth);
+  if (monthError) return { ok: false, error: monthError };
+
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.transaction.update({
+      where: { id },
+      data: { status: "SETTLED", settlementDate: date },
+    });
+    await writeAuditLog(tx, {
+      entityType: "Transaction",
+      entityId: id,
+      transactionId: id,
+      action: "MARK_SETTLED",
+      performedById: user.id,
+      beforeSnapshot: { status: txn.status },
+      afterSnapshot: { status: updated.status, settlementDate: updated.settlementDate },
+    });
+  });
+
+  revalidatePath("/transactions");
+  return { ok: true };
+}
+
+export type BulkSettleResult = { ok: true; count: number } | { ok: false; error: string };
+
+export async function markAllSettled(input: {
+  merchantId: string | null;
+  day: string | null;
+  settlementDate: string;
+}): Promise<BulkSettleResult> {
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  if (!input.merchantId && !input.day) {
+    return { ok: false, error: "Choose a merchant and/or a day to bulk-settle." };
+  }
+  const date = new Date(input.settlementDate);
+  if (Number.isNaN(date.getTime())) return { ok: false, error: "Invalid settlement date." };
+
+  const where: Prisma.TransactionWhereInput = { status: "APPROVED" };
+  if (input.merchantId) where.merchantId = input.merchantId;
+  if (input.day) {
+    const dayStart = new Date(`${input.day}T00:00:00.000Z`);
+    if (Number.isNaN(dayStart.getTime())) return { ok: false, error: "Invalid day." };
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    where.transactionDate = { gte: dayStart, lt: dayEnd };
+  }
+
+  const transactions = await prisma.transaction.findMany({ where });
+  if (transactions.length === 0) {
+    return { ok: false, error: "No approved transactions match that filter." };
+  }
+
+  const monthsToCheck = Array.from(new Set(transactions.map((t) => t.accountingMonth)));
+  for (const month of monthsToCheck) {
+    const monthError = await assertMonthOpen(month);
+    if (monthError) return { ok: false, error: monthError };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const txn of transactions) {
+      const updated = await tx.transaction.update({
+        where: { id: txn.id },
+        data: { status: "SETTLED", settlementDate: date },
+      });
+      await writeAuditLog(tx, {
+        entityType: "Transaction",
+        entityId: txn.id,
+        transactionId: txn.id,
+        action: "MARK_SETTLED",
+        performedById: user.id,
+        beforeSnapshot: { status: txn.status },
+        afterSnapshot: { status: updated.status, settlementDate: updated.settlementDate },
+        notes: "Bulk mark all settled",
+      });
+    }
+  });
+
+  revalidatePath("/transactions");
+  return { ok: true, count: transactions.length };
 }
 
 export async function requestTransactionDetails(id: string, note: string): Promise<ReviewResult> {

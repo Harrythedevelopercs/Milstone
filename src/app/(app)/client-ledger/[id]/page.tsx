@@ -65,14 +65,23 @@ export default async function ClientLedgerDetailPage({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">Current balance</p>
+          <p className="text-sm text-muted-foreground">
+            {running < 0 ? "Advanced / Owed to FoundaPay" : "Current balance"}
+          </p>
           <p
             className={`text-2xl font-semibold ${
               running > 0 ? "text-emerald-600" : running < 0 ? "text-destructive" : ""
             }`}
           >
-            {running.toFixed(2)}
+            {running < 0 ? Math.abs(running).toFixed(2) : running.toFixed(2)}
           </p>
+          {running < 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              FoundaPay has fronted this client more than they&apos;re currently owed. This
+              carries forward until offsetting activity brings the balance back to zero or
+              positive.
+            </p>
+          )}
         </CardContent>
       </Card>
 

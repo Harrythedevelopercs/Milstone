@@ -10,6 +10,7 @@ import { accountingMonthOf } from "@/lib/transactions/transaction-id";
 import { assertMonthOpen } from "@/lib/month-close/guard";
 import type { ActionResult } from "@/lib/action-result";
 import { clientPayoutSchema } from "./schema";
+import { PAYABLE_TRANSACTION_STATUSES } from "@/lib/transactions/payable-data";
 
 export async function createClientPayout(input: unknown): Promise<ActionResult> {
   const user = await requireRole("OWNER", "ACCOUNTANT");
@@ -37,20 +38,12 @@ export async function createClientPayout(input: unknown): Promise<ActionResult> 
     if (txn.clientId !== d.clientId) {
       return { ok: false, error: `Transaction ${txn.id} does not belong to this client.` };
     }
-    if (txn.status !== "CLIENT_PAYABLE" && txn.status !== "PARTIALLY_PAID") {
+    if (!(PAYABLE_TRANSACTION_STATUSES as readonly string[]).includes(txn.status)) {
       return { ok: false, error: `Transaction ${txn.id} is not payable (status ${txn.status}).` };
     }
-    const alreadyPaid = txn.payoutAllocations.reduce(
-      (sum, a) => sum.plus(a.amountAllocated),
-      new Decimal(0)
-    );
-    const remaining = new Decimal(txn.clientNetPayable ?? 0).minus(alreadyPaid);
-    if (new Decimal(alloc.amount).greaterThan(remaining.plus(0.01))) {
-      return {
-        ok: false,
-        error: `Allocation for ${txn.id} (${alloc.amount}) exceeds its remaining balance (${remaining.toFixed(2)}).`,
-      };
-    }
+    // No hard cap on allocation amount here -- paying more than a transaction's
+    // remaining balance is allowed by design (advance liberty rule). The UI
+    // warns the user before submit; this simply records what was approved.
   }
 
   const payoutDate = new Date(d.payoutDate);

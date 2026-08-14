@@ -13,18 +13,27 @@ import {
 import { EmptyTableRow } from "@/components/ui/empty-table-row";
 import { TransactionStatusBadge } from "@/components/transactions/status-badge";
 import { ReviewActions } from "./review-actions";
+import { MarkSettledAction } from "./settlement-actions";
+import { BulkSettleToolbar } from "./bulk-settle-toolbar";
 
 export default async function TransactionsPage() {
-  const transactions = await prisma.transaction.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    include: {
-      client: { select: { name: true } },
-      merchant: { select: { name: true } },
-      paymentMethod: { select: { name: true } },
-      createdBy: { select: { name: true } },
-    },
-  });
+  const [transactions, merchants] = await Promise.all([
+    prisma.transaction.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      include: {
+        client: { select: { name: true } },
+        merchant: { select: { name: true } },
+        paymentMethod: { select: { name: true } },
+        createdBy: { select: { name: true } },
+      },
+    }),
+    prisma.merchant.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -34,6 +43,8 @@ export default async function TransactionsPage() {
           New Transaction
         </Link>
       </div>
+
+      <BulkSettleToolbar merchants={merchants} />
 
       <div className="overflow-x-auto rounded-md border">
         <Table>
@@ -54,13 +65,14 @@ export default async function TransactionsPage() {
               <TableHead className="text-right">Expected Settlement</TableHead>
               <TableHead className="text-right">Client Net Payable</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Settled Date</TableHead>
               <TableHead>Review note</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {transactions.length === 0 ? (
-              <EmptyTableRow colSpan={17} message="No transactions yet." />
+              <EmptyTableRow colSpan={18} message="No transactions yet." />
             ) : (
               transactions.map((t) => (
                 <TableRow key={t.id}>
@@ -83,11 +95,17 @@ export default async function TransactionsPage() {
                   <TableCell>
                     <TransactionStatusBadge status={t.status} />
                   </TableCell>
+                  <TableCell>
+                    {t.settlementDate ? format(t.settlementDate, "yyyy-MM-dd") : "—"}
+                  </TableCell>
                   <TableCell className="max-w-xs text-sm text-muted-foreground">
                     {t.reviewNotes ?? "—"}
                   </TableCell>
                   <TableCell>
-                    <ReviewActions id={t.id} status={t.status} />
+                    <div className="flex justify-end gap-2">
+                      <ReviewActions id={t.id} status={t.status} />
+                      <MarkSettledAction id={t.id} status={t.status} />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

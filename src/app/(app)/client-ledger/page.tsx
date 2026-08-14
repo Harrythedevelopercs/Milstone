@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -50,7 +51,10 @@ export default async function ClientLedgerPage() {
                       value > 0 ? "text-emerald-600" : value < 0 ? "text-destructive" : ""
                     }`}
                   >
-                    {value.toFixed(2)}
+                    <span className="inline-flex items-center gap-2">
+                      {value.toFixed(2)}
+                      {value < 0 && <Badge variant="destructive">Advanced</Badge>}
+                    </span>
                   </TableCell>
                 </TableRow>
               );

@@ -30,9 +30,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { clientPayoutSchema, type ClientPayoutFormValues } from "../schema";
 import { createClientPayout } from "../actions";
+import type { PayoutClientOption, PayableTransaction } from "@/lib/transactions/payable-data";
 
 export type Option = { id: string; name: string };
-export type PayableTransaction = { id: string; clientId: string; remaining: string };
+export type { PayableTransaction };
 
 const FEE_BEARER_ITEMS = [
   { value: "FOUNDAPAY", label: "FoundaPay" },
@@ -45,7 +46,7 @@ export function PayoutForm({
   bankAccounts,
   payableTransactions,
 }: {
-  clients: Option[];
+  clients: PayoutClientOption[];
   payoutMethods: Option[];
   bankAccounts: Option[];
   payableTransactions: PayableTransaction[];
@@ -75,6 +76,10 @@ export function PayoutForm({
     () => payableTransactions.filter((t) => t.clientId === clientId),
     [payableTransactions, clientId]
   );
+  const selectedClient = useMemo(
+    () => clients.find((c) => c.id === clientId) ?? null,
+    [clients, clientId]
+  );
 
   function toggle(id: string, remaining: string, checked: boolean) {
     setSelected((s) => ({ ...s, [id]: checked }));
@@ -86,6 +91,10 @@ export function PayoutForm({
   const totalAllocated = clientTransactions
     .filter((t) => selected[t.id])
     .reduce((sum, t) => sum.plus(amounts[t.id] || "0"), new Decimal(0));
+
+  const balanceAfter = selectedClient
+    ? new Decimal(selectedClient.currentBalance).minus(totalAllocated)
+    : null;
 
   function onSubmit(values: Omit<ClientPayoutFormValues, "allocations">) {
     const allocations = clientTransactions
@@ -162,39 +171,66 @@ export function PayoutForm({
                       No payable transactions for this client.
                     </p>
                   ) : (
-                    clientTransactions.map((t) => (
-                      <div
-                        key={t.id}
-                        className="flex items-center justify-between gap-3 border-b px-3 py-2 text-sm last:border-b-0"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            checked={!!selected[t.id]}
-                            onCheckedChange={(checked) => toggle(t.id, t.remaining, !!checked)}
-                          />
-                          <span className="font-mono text-xs">{t.id}</span>
-                          <span className="text-muted-foreground">
-                            (remaining {t.remaining})
-                          </span>
+                    clientTransactions.map((t) => {
+                      const overRemaining =
+                        selected[t.id] &&
+                        new Decimal(amounts[t.id] || "0").greaterThan(
+                          new Decimal(t.remaining).plus(0.01)
+                        );
+                      return (
+                        <div
+                          key={t.id}
+                          className="flex flex-col gap-1 border-b px-3 py-2 text-sm last:border-b-0"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                checked={!!selected[t.id]}
+                                onCheckedChange={(checked) => toggle(t.id, t.remaining, !!checked)}
+                              />
+                              <span className="font-mono text-xs">{t.id}</span>
+                              <span className="text-muted-foreground">
+                                (remaining {t.remaining})
+                              </span>
+                            </div>
+                            {selected[t.id] && (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                className="w-28"
+                                value={amounts[t.id] ?? t.remaining}
+                                onChange={(e) =>
+                                  setAmounts((a) => ({ ...a, [t.id]: e.target.value }))
+                                }
+                              />
+                            )}
+                          </div>
+                          {overRemaining && (
+                            <p className="pl-6 text-xs text-amber-600">
+                              This exceeds the transaction&apos;s remaining balance — paying it
+                              will add to the client&apos;s advance.
+                            </p>
+                          )}
                         </div>
-                        {selected[t.id] && (
-                          <Input
-                            type="number"
-                            step="0.01"
-                            className="w-28"
-                            value={amounts[t.id] ?? t.remaining}
-                            onChange={(e) =>
-                              setAmounts((a) => ({ ...a, [t.id]: e.target.value }))
-                            }
-                          />
-                        )}
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Total allocated: {totalAllocated.toFixed(2)}
                 </p>
+                {selectedClient && (
+                  <p className="text-sm text-muted-foreground">
+                    {selectedClient.name}&apos;s current balance: {selectedClient.currentBalance}
+                  </p>
+                )}
+                {balanceAfter && balanceAfter.lessThan(0) && (
+                  <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    This payout will result in an advance of{" "}
+                    <strong>{balanceAfter.abs().toFixed(2)}</strong> — {selectedClient?.name}{" "}
+                    will owe FoundaPay back. This will be tracked on the client statement.
+                  </p>
+                )}
                 {allocationError && <p className="text-sm text-destructive">{allocationError}</p>}
               </div>
             )}

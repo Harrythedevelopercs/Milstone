@@ -11,7 +11,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TransactionForm,
-  type ClientOption,
   type MerchantOption,
   type BankOption,
   type PaymentMethodOption,
@@ -21,6 +20,7 @@ import {
   type Option as PayoutOption,
   type PayableTransaction,
 } from "@/app/(app)/payouts/new/payout-form";
+import type { PayoutClientOption } from "@/lib/transactions/payable-data";
 import { TransferForm, type Option as TransferOption } from "@/app/(app)/transfers/new/transfer-form";
 import {
   ExpenseKindForm,
@@ -50,7 +50,7 @@ export function TransactionTypeForm({
   businessUnits,
   partners,
 }: {
-  clients: ClientOption[];
+  clients: PayoutClientOption[];
   merchants: MerchantOption[];
   bankAccounts: BankOption[];
   paymentMethods: PaymentMethodOption[];
