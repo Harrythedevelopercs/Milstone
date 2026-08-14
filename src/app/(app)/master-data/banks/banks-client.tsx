@@ -7,6 +7,7 @@ import { useCrudAction } from "@/hooks/use-crud-action";
 import { setBankAccountActive } from "./actions";
 import { BankAccountForm, type CompanyOption } from "./bank-account-form";
 import { CompanyBankGroups } from "./company-bank-groups";
+import { ImportCsvDialog } from "./import-csv-dialog";
 import type { BankAccountFormValues } from "./schema";
 
 export type BankAccountRow = {
@@ -73,7 +74,10 @@ export function BanksClient({ rows, companies }: { rows: BankAccountRow[]; compa
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Bank Accounts</h1>
-        <Button onClick={openCreate}>Add Account</Button>
+        <div className="flex items-center gap-2">
+          <ImportCsvDialog />
+          <Button onClick={openCreate}>Add Account</Button>
+        </div>
       </div>
 
       <CompanyBankGroups rows={rows} onEdit={openEdit} onToggleActive={toggleActive} />
