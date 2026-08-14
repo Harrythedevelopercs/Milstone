@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 
 export default async function ExpensesPage() {
   const expenses = await prisma.expense.findMany({
@@ -46,11 +47,7 @@ export default async function ExpensesPage() {
           </TableHeader>
           <TableBody>
             {expenses.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                  No expenses yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={7} message="No expenses yet." />
             ) : (
               expenses.map((e) => (
                 <TableRow key={e.id}>

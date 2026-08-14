@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 
 const SOURCE_LABEL: Record<string, string> = {
   TRANSACTION: "Transaction",
@@ -89,11 +90,7 @@ export default async function ClientLedgerDetailPage({
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                  No ledger activity yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={6} message="No ledger activity yet." />
             ) : (
               rows.map((r) => (
                 <TableRow key={r.id}>

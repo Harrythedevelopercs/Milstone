@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 
 // Client-facing statement: no internal source types, no FP fee/rate detail,
 // no links back to internal records -- just what the client is owed/owes
@@ -80,11 +81,7 @@ export default async function ClientExternalStatementPage({
         </TableHeader>
         <TableBody>
           {rows.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                No activity yet.
-              </TableCell>
-            </TableRow>
+            <EmptyTableRow colSpan={4} message="No activity yet." />
           ) : (
             rows.map((r) => (
               <TableRow key={r.id}>

@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 
 export default async function SettlementsPage() {
   const batches = await prisma.settlementBatch.findMany({
@@ -47,11 +48,7 @@ export default async function SettlementsPage() {
           </TableHeader>
           <TableBody>
             {batches.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                  No settlement batches yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={8} message="No settlement batches yet." />
             ) : (
               batches.map((b) => (
                 <TableRow key={b.id}>

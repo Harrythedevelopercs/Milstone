@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 
 export default async function PayoutsPage() {
   const payouts = await prisma.clientPayout.findMany({
@@ -49,11 +50,7 @@ export default async function PayoutsPage() {
           </TableHeader>
           <TableBody>
             {payouts.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
-                  No payouts yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={9} message="No payouts yet." />
             ) : (
               payouts.map((p) => (
                 <TableRow key={p.id}>

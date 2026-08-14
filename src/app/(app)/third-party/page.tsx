@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 
 export default async function ThirdPartyPage() {
   const [parties, balances] = await Promise.all([
@@ -42,11 +43,7 @@ export default async function ThirdPartyPage() {
           </TableHeader>
           <TableBody>
             {parties.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={2} className="py-8 text-center text-muted-foreground">
-                  No settlement parties yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={2} message="No settlement parties yet." />
             ) : (
               parties.map((p) => {
                 const balance = balanceByParty.get(p.id);

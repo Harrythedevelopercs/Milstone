@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { DateRangeHeader } from "@/components/exports/date-range-header";
 import {
   Table,
@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 import { AllocatePanel } from "./allocate-panel";
 
 export default async function BonusPoolPage({
@@ -47,17 +48,14 @@ export default async function BonusPoolPage({
 
   return (
     <div className="space-y-4">
-      <DateRangeHeader from={from} to={to} reportType="bonus-pool" />
+      <DateRangeHeader title="Bonus Pool" from={from} to={to} reportType="bonus-pool" />
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Bonus Pool</span>
-            <AllocatePanel employees={employees} />
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">Available to allocate</p>
-          <p className="text-2xl font-semibold">{balance.toFixed(2)}</p>
+        <CardContent className="flex items-center justify-between pt-6">
+          <div>
+            <p className="text-sm text-muted-foreground">Available to allocate</p>
+            <p className="text-2xl font-semibold">{balance.toFixed(2)}</p>
+          </div>
+          <AllocatePanel employees={employees} />
         </CardContent>
       </Card>
 
@@ -75,11 +73,7 @@ export default async function BonusPoolPage({
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                  No activity yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={6} message="No activity yet." />
             ) : (
               rows.map((r) => (
                 <TableRow key={r.id}>

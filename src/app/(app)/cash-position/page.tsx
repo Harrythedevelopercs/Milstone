@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DownloadButtons } from "@/components/exports/download-buttons";
 
@@ -73,11 +74,7 @@ export default async function CashPositionPage() {
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                  No active bank accounts yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={5} message="No active bank accounts yet." />
             ) : (
               rows.map((r) => (
                 <TableRow key={r.id}>

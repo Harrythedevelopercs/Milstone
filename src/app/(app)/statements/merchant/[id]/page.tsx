@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 
 export default async function MerchantStatementPage({
   params,
@@ -112,11 +113,7 @@ export default async function MerchantStatementPage({
           </TableHeader>
           <TableBody>
             {transactions.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                  No transactions yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={8} message="No transactions yet." />
             ) : (
               transactions.map((t) => (
                 <TableRow key={t.id}>

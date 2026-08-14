@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 
 export default async function BusinessUnitPnlPage({
   searchParams,
@@ -55,11 +56,7 @@ export default async function BusinessUnitPnlPage({
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                  No business units yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={5} message="No business units yet." />
             ) : (
               rows.map((r) => (
                 <TableRow key={r.name}>

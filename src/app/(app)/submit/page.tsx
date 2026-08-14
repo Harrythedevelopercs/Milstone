@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 import { TransactionStatusBadge } from "@/components/transactions/status-badge";
 import { SubmitForm } from "./submit-form";
 
@@ -63,11 +64,7 @@ export default async function SubmitPage() {
             </TableHeader>
             <TableBody>
               {mySubmissions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                    You haven&apos;t submitted anything yet.
-                  </TableCell>
-                </TableRow>
+                <EmptyTableRow colSpan={7} message="You haven't submitted anything yet." />
               ) : (
                 mySubmissions.map((t) => (
                   <TableRow key={t.id}>

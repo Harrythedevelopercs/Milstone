@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 import { ReconcilePanel } from "./reconcile-panel";
 
 export default async function CashPositionDetailPage({
@@ -69,11 +70,7 @@ export default async function CashPositionDetailPage({
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                  No activity yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={5} message="No activity yet." />
             ) : (
               rows.map((r) => (
                 <TableRow key={r.id}>

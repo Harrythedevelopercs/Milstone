@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 
 export default async function TransfersPage() {
   const transfers = await prisma.internalTransfer.findMany({
@@ -43,11 +44,7 @@ export default async function TransfersPage() {
           </TableHeader>
           <TableBody>
             {transfers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                  No transfers yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={6} message="No transfers yet." />
             ) : (
               transfers.map((t) => (
                 <TableRow key={t.id}>

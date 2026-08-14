@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 import { DrawingPanel } from "./drawing-panel";
 
 const KIND_LABEL: Record<string, string> = {
@@ -61,7 +62,13 @@ export default async function PartnerLedgerDetailPage({
 
   return (
     <div className="space-y-4">
-      <DateRangeHeader from={from} to={to} reportType="partner-ledger" exportParams={{ id }} />
+      <DateRangeHeader
+        title="Partner Ledger"
+        from={from}
+        to={to}
+        reportType="partner-ledger"
+        exportParams={{ id }}
+      />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
@@ -93,11 +100,7 @@ export default async function PartnerLedgerDetailPage({
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                  No activity yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={6} message="No activity yet." />
             ) : (
               rows.map((r) => (
                 <TableRow key={r.id}>

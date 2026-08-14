@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 
 export default async function EmployeePartnerLedgerPage() {
   const [employees, balances] = await Promise.all([
@@ -36,11 +37,7 @@ export default async function EmployeePartnerLedgerPage() {
           </TableHeader>
           <TableBody>
             {employees.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={2} className="py-8 text-center text-muted-foreground">
-                  No employee partners yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={2} message="No employee partners yet." />
             ) : (
               employees.map((e) => {
                 const balance = balanceByEmployee.get(e.id);

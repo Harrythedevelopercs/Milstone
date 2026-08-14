@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 
 export default async function EmployeePartnerLedgerDetailPage({
   params,
@@ -46,6 +47,7 @@ export default async function EmployeePartnerLedgerDetailPage({
   return (
     <div className="space-y-4">
       <DateRangeHeader
+        title="Employee Partner Ledger"
         from={from}
         to={to}
         reportType="employee-partner-ledger"
@@ -74,11 +76,7 @@ export default async function EmployeePartnerLedgerDetailPage({
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                  No activity yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={5} message="No activity yet." />
             ) : (
               rows.map((r) => (
                 <TableRow key={r.id}>

@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 
 export default async function CompanyPnlPage({
   searchParams,
@@ -54,11 +55,7 @@ export default async function CompanyPnlPage({
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
-                  No companies yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={4} message="No companies yet." />
             ) : (
               rows.map((r) => (
                 <TableRow key={r.name}>

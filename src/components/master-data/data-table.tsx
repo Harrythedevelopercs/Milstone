@@ -6,6 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export type DataTableColumn<T> = {
   key: string;
@@ -40,11 +41,8 @@ export function DataTable<T>({
         <TableBody>
           {rows.length === 0 ? (
             <TableRow>
-              <TableCell
-                colSpan={columns.length}
-                className="text-center text-muted-foreground py-8"
-              >
-                {emptyMessage}
+              <TableCell colSpan={columns.length} className="p-0">
+                <EmptyState title={emptyMessage} />
               </TableCell>
             </TableRow>
           ) : (

@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 
 export default async function ProductSalesPage() {
   const sales = await prisma.productServiceSale.findMany({
@@ -46,11 +47,7 @@ export default async function ProductSalesPage() {
           </TableHeader>
           <TableBody>
             {sales.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                  No sales yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={8} message="No sales yet." />
             ) : (
               sales.map((s) => (
                 <TableRow key={s.id}>

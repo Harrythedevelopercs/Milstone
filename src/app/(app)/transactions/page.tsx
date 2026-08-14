@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyTableRow } from "@/components/ui/empty-table-row";
 import { TransactionStatusBadge } from "@/components/transactions/status-badge";
 import { ReviewActions } from "./review-actions";
 
@@ -59,11 +60,7 @@ export default async function TransactionsPage() {
           </TableHeader>
           <TableBody>
             {transactions.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={17} className="py-8 text-center text-muted-foreground">
-                  No transactions yet.
-                </TableCell>
-              </TableRow>
+              <EmptyTableRow colSpan={17} message="No transactions yet." />
             ) : (
               transactions.map((t) => (
                 <TableRow key={t.id}>
