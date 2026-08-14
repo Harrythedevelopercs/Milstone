@@ -19,6 +19,10 @@ import { PartnerDrawForm } from "./partner-draw-form";
 
 export type Option = { id: string; name: string };
 
+// Business Unit Expense currently uses the simple model: paid from FoundaPay's
+// bank, tagged with businessUnitId, hits both FoundaPay's and the BU's P&L.
+// A real funding/drawdown model (BU accrues a balance owed back to FoundaPay)
+// is an approved future feature, not yet built — confirmed with user 2026-08-14.
 const EXPENSE_KIND_ITEMS = [
   { value: "OPERATING", label: "FoundaPay Operating Expense" },
   { value: "BUSINESS_UNIT", label: "Business Unit Expense" },
