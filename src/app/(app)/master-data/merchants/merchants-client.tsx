@@ -7,7 +7,7 @@ import { DataTable } from "@/components/master-data/data-table";
 import { CrudSheet } from "@/components/master-data/crud-sheet";
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { setMerchantActive } from "./actions";
-import { MerchantForm, type Option } from "./merchant-form";
+import { MerchantForm, type Option, type BankAccountOption } from "./merchant-form";
 import { FeeRulesPanel, type FeeRuleRow } from "./fee-rules-panel";
 import type { MerchantFormValues } from "./schema";
 
@@ -38,7 +38,7 @@ export function MerchantsClient({
   rows: MerchantRow[];
   companies: Option[];
   businessUnits: Option[];
-  bankAccounts: Option[];
+  bankAccounts: BankAccountOption[];
   paymentMethods: { id: string; name: string }[];
 }) {
   const [editing, setEditing] = useState<MerchantRow | null>(null);

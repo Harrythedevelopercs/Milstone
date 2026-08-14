@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,10 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -24,6 +28,12 @@ import { merchantSchema, type MerchantFormValues } from "./schema";
 import { createMerchant, updateMerchant } from "./actions";
 
 export type Option = { id: string; name: string };
+export type BankAccountOption = {
+  id: string;
+  name: string;
+  companyId: string | null;
+  company: { name: string } | null;
+};
 
 export function MerchantForm({
   defaultValues,
@@ -37,7 +47,7 @@ export function MerchantForm({
   editingId: string | null;
   companies: Option[];
   businessUnits: Option[];
-  bankAccounts: Option[];
+  bankAccounts: BankAccountOption[];
   onSuccess: () => void;
 }) {
   const { run, isPending } = useCrudAction();
@@ -45,6 +55,44 @@ export function MerchantForm({
     resolver: zodResolver(merchantSchema),
     defaultValues,
   });
+
+  const selectedCompanyId = form.watch("companyId");
+
+  // This merchant's own company's banks come first (not restricted to them --
+  // every other bank account is still pickable below, grouped by whichever
+  // company it belongs to so it's clear whose account you're choosing).
+  const bankGroups = useMemo(() => {
+    const ownCompanyBanks = selectedCompanyId
+      ? bankAccounts.filter((b) => b.companyId === selectedCompanyId)
+      : [];
+
+    const otherByCompany = new Map<string, { label: string; accounts: BankAccountOption[] }>();
+    const unlinked: BankAccountOption[] = [];
+    for (const b of bankAccounts) {
+      if (selectedCompanyId && b.companyId === selectedCompanyId) continue;
+      if (b.companyId && b.company) {
+        if (!otherByCompany.has(b.companyId)) {
+          otherByCompany.set(b.companyId, { label: b.company.name, accounts: [] });
+        }
+        otherByCompany.get(b.companyId)!.accounts.push(b);
+      } else {
+        unlinked.push(b);
+      }
+    }
+    const otherGroups = Array.from(otherByCompany.values()).sort((a, b) =>
+      a.label.localeCompare(b.label)
+    );
+
+    return { ownCompanyBanks, otherGroups, unlinked };
+  }, [bankAccounts, selectedCompanyId]);
+
+  const bankSelectItems = [
+    ...bankGroups.ownCompanyBanks.map((b) => ({ value: b.id, label: b.name })),
+    ...bankGroups.otherGroups.flatMap((g) =>
+      g.accounts.map((b) => ({ value: b.id, label: `${b.name} (${g.label})` }))
+    ),
+    ...bankGroups.unlinked.map((b) => ({ value: b.id, label: b.name })),
+  ];
 
   function onSubmit(values: MerchantFormValues) {
     run(() => (editingId ? updateMerchant(editingId, values) : createMerchant(values)), {
@@ -148,22 +196,46 @@ export function MerchantForm({
           render={({ field }) => (
             <FormItem>
               <FormLabel>Settlement bank</FormLabel>
-              <Select
-                value={field.value}
-                onValueChange={field.onChange}
-                items={bankAccounts.map((b) => ({ value: b.id, label: b.name }))}
-              >
+              <Select value={field.value} onValueChange={field.onChange} items={bankSelectItems}>
                 <FormControl>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a bank account" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {bankAccounts.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectItem>
+                  {bankGroups.ownCompanyBanks.length > 0 && (
+                    <>
+                      <SelectGroup>
+                        <SelectLabel>This company&apos;s banks</SelectLabel>
+                        {bankGroups.ownCompanyBanks.map((b) => (
+                          <SelectItem key={b.id} value={b.id}>
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectSeparator />
+                    </>
+                  )}
+                  {bankGroups.otherGroups.map((g) => (
+                    <SelectGroup key={g.label}>
+                      <SelectLabel>{g.label}</SelectLabel>
+                      {g.accounts.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   ))}
+                  {bankGroups.unlinked.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>Not linked to a company</SelectLabel>
+                      {bankGroups.unlinked.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
                 </SelectContent>
               </Select>
               <FormMessage />

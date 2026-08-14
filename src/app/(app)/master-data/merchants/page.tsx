@@ -24,7 +24,7 @@ export default async function MerchantsPage() {
       prisma.bankAccount.findMany({
         where: { active: true },
         orderBy: { name: "asc" },
-        select: { id: true, name: true },
+        select: { id: true, name: true, companyId: true, company: { select: { name: true } } },
       }),
       prisma.paymentMethod.findMany({
         where: { status: "ACTIVE" },
