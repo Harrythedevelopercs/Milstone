@@ -9,6 +9,15 @@ import { writeAuditLog } from "@/lib/audit-log";
 import { createTransactionCore } from "@/lib/transactions/create-transaction-core";
 import { postClientLedgerForTransaction } from "@/lib/transactions/post-ledger";
 import { accountingMonthOf } from "@/lib/transactions/transaction-id";
+import { lookupClientRate, lookupMerchantFeeRule } from "@/lib/transactions/rate-lookup";
+import {
+  calculateClientNetPayable,
+  calculateExpectedSettlement,
+  calculateFpFee,
+  calculateMerchantFeeFromRule,
+  calculatePercentAmount,
+  money,
+} from "@/lib/transactions/money-math";
 import { assertMonthOpen } from "@/lib/month-close/guard";
 import { transactionSchema, rcvSchema } from "./schema";
 
@@ -46,6 +55,202 @@ export async function createTransaction(input: unknown): Promise<CreateTransacti
 
   if (result.ok) revalidatePath("/transactions");
   return result;
+}
+
+// Full edit, by explicit decision: Owner/Accountant can change any business
+// field on any status, as long as the transaction's month (and the new
+// month, if the date edit moves it) is still open -- month-close is the
+// only gate. Unlike every other posting in this app, this ACTUALLY mutates
+// the transaction row in place (id/createdBy/createdAt/audit history stay
+// locked). To keep the append-only ledger honest anyway, we never rewrite
+// an existing ClientLedger row: if clientNetPayable or the client changes
+// after the transaction was ever approved, we reverse the old posting and
+// post a fresh one for the new state -- same pattern as every other
+// correction in this app (Refund/Chargeback/Void, Adjustment).
+export async function updateTransaction(id: string, input: unknown): Promise<CreateTransactionResult> {
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const parsed = transactionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  const existing = await prisma.transaction.findUnique({ where: { id } });
+  if (!existing) return { ok: false, error: "Transaction not found." };
+
+  const monthError = await assertMonthOpen(existing.accountingMonth);
+  if (monthError) return { ok: false, error: monthError };
+
+  const transactionDate = new Date(d.transactionDate);
+  if (Number.isNaN(transactionDate.getTime())) return { ok: false, error: "Invalid transaction date." };
+  const accountingMonth = accountingMonthOf(transactionDate);
+  if (accountingMonth !== existing.accountingMonth) {
+    const newMonthError = await assertMonthOpen(accountingMonth);
+    if (newMonthError) return { ok: false, error: newMonthError };
+  }
+
+  const [client, merchant] = await Promise.all([
+    prisma.client.findUnique({ where: { id: d.clientId } }),
+    prisma.merchant.findUnique({
+      where: { id: d.merchantId },
+      include: { company: { select: { employeePartnerId: true } } },
+    }),
+  ]);
+  if (!client || client.status !== "ACTIVE") return { ok: false, error: "Client not found or inactive." };
+  if (!merchant || !merchant.active) return { ok: false, error: "Merchant not found or inactive." };
+
+  const rate = await lookupClientRate(d.clientId, d.paymentMethodId, transactionDate);
+  if (!rate) {
+    return {
+      ok: false,
+      error: "No rate is set up for this client and payment method as of this date.",
+    };
+  }
+
+  const feeRule = await lookupMerchantFeeRule(d.merchantId, d.paymentMethodId);
+  const gross = d.grossAmount;
+  const merchantFeeDefault = feeRule
+    ? calculateMerchantFeeFromRule(gross, feeRule.feePercent, feeRule.flatFee)
+    : calculateMerchantFeeFromRule(gross, 0, 0);
+  const merchantFeeManualProvided = d.merchantFeeManual !== null && d.merchantFeeManual !== "" && d.merchantFeeManual !== undefined;
+  const merchantFee = merchantFeeManualProvided ? d.merchantFeeManual! : merchantFeeDefault;
+  const merchantFeeSource: "MANUAL" | "RULE_DEFAULT" = merchantFeeManualProvided ? "MANUAL" : "RULE_DEFAULT";
+
+  const fpFee = calculateFpFee(gross, merchantFee, rate.ratePercent, rate.feeBasis);
+  const merchantReserveAmount = calculatePercentAmount(gross, d.merchantReservePercent);
+  const fpReserveAmount = calculatePercentAmount(gross, d.fpReservePercent);
+  const expectedSettlement = calculateExpectedSettlement(gross, merchantFee, merchantReserveAmount);
+  const clientNetPayable = calculateClientNetPayable({
+    gross,
+    merchantFee,
+    merchantReserveAmount,
+    fpFee,
+    fpReserveAmount,
+    feeBearer: d.feeBearer,
+  });
+
+  const oldClientNetPayable = new Decimal(existing.clientNetPayable ?? 0);
+  const newClientNetPayable = new Decimal(clientNetPayable);
+  const clientChanged = existing.clientId !== d.clientId;
+  const amountChanged = !oldClientNetPayable.equals(newClientNetPayable);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.transaction.update({
+      where: { id },
+      data: {
+        transactionDate,
+        accountingMonth,
+        clientId: d.clientId,
+        clientReference: d.clientReference || null,
+        companyId: merchant.companyId,
+        merchantId: d.merchantId,
+        expectedBankId: d.expectedBankId,
+        employeePartnerId: merchant.company.employeePartnerId,
+        businessUnitId: merchant.businessUnitId,
+        paymentMethodId: d.paymentMethodId,
+        grossAmount: gross,
+        fpRatePercent: rate.ratePercent,
+        feeBasis: rate.feeBasis,
+        fpFee: money(fpFee),
+        merchantFeeManual: merchantFeeManualProvided ? d.merchantFeeManual! : null,
+        merchantFeeDefault: money(merchantFeeDefault),
+        merchantFee: money(merchantFee),
+        merchantFeeSource,
+        feeBearer: d.feeBearer,
+        merchantReservePercent: d.merchantReservePercent,
+        merchantReserveAmount: money(merchantReserveAmount),
+        fpReservePercent: d.fpReservePercent,
+        fpReserveAmount: money(fpReserveAmount),
+        expectedSettlement: money(expectedSettlement),
+        clientNetPayable: money(clientNetPayable),
+        documentUrl: d.documentUrl || null,
+        notes: d.notes || null,
+        customerEmail: d.customerEmail || null,
+        cardLast4: d.cardLast4 || null,
+        updatedById: user.id,
+      },
+    });
+
+    // Only correct the ledger if this transaction ever actually posted
+    // (i.e. was approved at some point) and either the amount or the
+    // client changed. A transaction still sitting pre-approval has no
+    // ledger footprint to correct.
+    const hadLedgerEntry = await tx.clientLedger.findFirst({
+      where: { transactionId: id, sourceType: "TRANSACTION" },
+    });
+    if (hadLedgerEntry && (amountChanged || clientChanged)) {
+      if (!oldClientNetPayable.isZero()) {
+        await tx.clientLedger.create({
+          data: {
+            clientId: existing.clientId,
+            entryDate: transactionDate,
+            accountingMonth,
+            amount: oldClientNetPayable.negated().toFixed(2),
+            sourceType: "TRANSACTION",
+            sourceId: id,
+            transactionId: id,
+            description: `Correction: edit to ${id} (reversing prior amount)`,
+            createdById: user.id,
+          },
+        });
+      }
+      await tx.clientLedger.create({
+        data: {
+          clientId: d.clientId,
+          entryDate: transactionDate,
+          accountingMonth,
+          amount: newClientNetPayable.toFixed(2),
+          sourceType: "TRANSACTION",
+          sourceId: id,
+          transactionId: id,
+          description: `Correction: edit to ${id} (new amount)`,
+          createdById: user.id,
+        },
+      });
+    }
+
+    // A settlement batch's expected/difference amount was computed once at
+    // batch-creation time from this transaction's expectedSettlement --
+    // recompute it so it doesn't go silently stale.
+    if (existing.settlementBatchId) {
+      const batchTxns = await tx.transaction.findMany({
+        where: { settlementBatchId: existing.settlementBatchId },
+        select: { expectedSettlement: true },
+      });
+      const newExpectedAmount = batchTxns.reduce(
+        (sum, t) => sum.plus(t.expectedSettlement),
+        new Decimal(0)
+      );
+      const batch = await tx.settlementBatch.findUnique({ where: { id: existing.settlementBatchId } });
+      if (batch) {
+        await tx.settlementBatch.update({
+          where: { id: batch.id },
+          data: {
+            expectedAmount: newExpectedAmount.toFixed(2),
+            differenceAmount: new Decimal(batch.depositAmount).minus(newExpectedAmount).toFixed(2),
+          },
+        });
+      }
+    }
+
+    await writeAuditLog(tx, {
+      entityType: "Transaction",
+      entityId: id,
+      transactionId: id,
+      action: "UPDATE",
+      performedById: user.id,
+      beforeSnapshot: JSON.parse(JSON.stringify(existing)),
+      afterSnapshot: JSON.parse(JSON.stringify(row)),
+    });
+
+    return row;
+  });
+
+  revalidatePath("/transactions");
+  revalidatePath("/client-ledger");
+  revalidatePath("/settlements");
+  revalidatePath("/payouts");
+  revalidatePath("/refunds-chargebacks-voids");
+  revalidatePath("/");
+  return { ok: true, id: updated.id };
 }
 
 export type ReviewResult = { ok: true } | { ok: false; error: string };
@@ -366,4 +571,32 @@ export async function createRcv(input: unknown): Promise<ReviewResult> {
   revalidatePath("/refunds-chargebacks-voids");
   revalidatePath("/");
   return { ok: true };
+}
+
+export type TransactionHistoryEntry = {
+  id: string;
+  action: string;
+  performedByName: string;
+  performedAt: string;
+  notes: string | null;
+  beforeSnapshot: unknown;
+  afterSnapshot: unknown;
+};
+
+export async function getTransactionHistory(transactionId: string): Promise<TransactionHistoryEntry[]> {
+  await requireRole("OWNER", "ACCOUNTANT");
+  const logs = await prisma.auditLog.findMany({
+    where: { transactionId },
+    orderBy: { performedAt: "desc" },
+    include: { performedBy: { select: { name: true } } },
+  });
+  return logs.map((l) => ({
+    id: l.id,
+    action: l.action,
+    performedByName: l.performedBy.name,
+    performedAt: l.performedAt.toISOString(),
+    notes: l.notes,
+    beforeSnapshot: l.beforeSnapshot,
+    afterSnapshot: l.afterSnapshot,
+  }));
 }

@@ -16,9 +16,11 @@ import { ReviewActions } from "./review-actions";
 import { MarkSettledAction } from "./settlement-actions";
 import { BulkSettleToolbar } from "./bulk-settle-toolbar";
 import { RcvActions } from "./rcv-actions";
+import { EditTransactionAction } from "./edit-transaction-action";
+import { TransactionHistoryAction } from "./transaction-history-action";
 
 export default async function TransactionsPage() {
-  const [transactions, merchants] = await Promise.all([
+  const [transactions, merchants, clients, bankAccounts, paymentMethods, closedMonths] = await Promise.all([
     prisma.transaction.findMany({
       orderBy: { createdAt: "desc" },
       take: 200,
@@ -32,9 +34,33 @@ export default async function TransactionsPage() {
     prisma.merchant.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
+      select: { id: true, name: true, settlementBankId: true, defaultReservePercent: true },
+    }),
+    prisma.client.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
+    prisma.bankAccount.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    prisma.paymentMethod.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    prisma.monthClose.findMany({ where: { status: "CLOSED" }, select: { accountingMonth: true } }),
   ]);
+
+  const merchantOptions = merchants.map((m) => ({
+    id: m.id,
+    name: m.name,
+    settlementBankId: m.settlementBankId,
+    defaultReservePercent: m.defaultReservePercent.toString(),
+  }));
+  const closedMonthSet = new Set(closedMonths.map((m) => m.accountingMonth));
 
   return (
     <div className="space-y-4">
@@ -103,10 +129,36 @@ export default async function TransactionsPage() {
                     {t.reviewNotes ?? "—"}
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end gap-2">
+                    <div className="flex flex-wrap justify-end gap-2">
                       <ReviewActions id={t.id} status={t.status} />
                       <MarkSettledAction id={t.id} status={t.status} />
                       <RcvActions id={t.id} status={t.status} />
+                      <EditTransactionAction
+                        row={{
+                          id: t.id,
+                          transactionDate: t.transactionDate.toISOString(),
+                          clientId: t.clientId,
+                          clientReference: t.clientReference,
+                          merchantId: t.merchantId,
+                          expectedBankId: t.expectedBankId,
+                          paymentMethodId: t.paymentMethodId,
+                          grossAmount: t.grossAmount.toString(),
+                          feeBearer: t.feeBearer,
+                          merchantFeeManual: t.merchantFeeManual?.toString() ?? null,
+                          merchantReservePercent: t.merchantReservePercent.toString(),
+                          fpReservePercent: t.fpReservePercent.toString(),
+                          documentUrl: t.documentUrl,
+                          notes: t.notes,
+                          customerEmail: t.customerEmail,
+                          cardLast4: t.cardLast4,
+                        }}
+                        monthOpen={!closedMonthSet.has(t.accountingMonth)}
+                        clients={clients}
+                        merchants={merchantOptions}
+                        bankAccounts={bankAccounts}
+                        paymentMethods={paymentMethods}
+                      />
+                      <TransactionHistoryAction id={t.id} />
                     </div>
                   </TableCell>
                 </TableRow>

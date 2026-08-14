@@ -27,7 +27,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { transactionSchema, type TransactionFormValues } from "../schema";
-import { createTransaction } from "../actions";
+import { createTransaction, updateTransaction } from "../actions";
 
 export type ClientOption = { id: string; name: string };
 export type MerchantOption = {
@@ -49,17 +49,25 @@ export function TransactionForm({
   merchants,
   bankAccounts,
   paymentMethods,
+  editingId,
+  defaultValues: providedDefaultValues,
+  onSuccess,
+  hideChrome = false,
 }: {
   clients: ClientOption[];
   merchants: MerchantOption[];
   bankAccounts: BankOption[];
   paymentMethods: PaymentMethodOption[];
+  editingId?: string;
+  defaultValues?: TransactionFormValues;
+  onSuccess?: () => void;
+  hideChrome?: boolean;
 }) {
   const router = useRouter();
   const { run, isPending } = useCrudAction();
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
-    defaultValues: {
+    defaultValues: providedDefaultValues ?? {
       transactionDate: format(new Date(), "yyyy-MM-dd"),
       clientId: "",
       clientReference: "",
@@ -80,6 +88,7 @@ export function TransactionForm({
 
   const merchantId = form.watch("merchantId");
   useEffect(() => {
+    if (editingId) return; // don't clobber the existing bank/reserve on edit
     const merchant = merchants.find((m) => m.id === merchantId);
     if (merchant) {
       form.setValue("expectedBankId", merchant.settlementBankId);
@@ -91,10 +100,16 @@ export function TransactionForm({
   function onSubmit(values: TransactionFormValues) {
     run(
       async () => {
-        const result = await createTransaction(values);
+        const result = editingId
+          ? await updateTransaction(editingId, values)
+          : await createTransaction(values);
         if (result.ok) {
-          toast.success(`Transaction ${result.id} created`);
-          router.push("/transactions");
+          toast.success(editingId ? "Transaction updated" : `Transaction ${result.id} created`);
+          if (editingId) {
+            onSuccess?.();
+          } else {
+            router.push("/transactions");
+          }
           return { ok: true };
         }
         return result;
@@ -103,14 +118,9 @@ export function TransactionForm({
     );
   }
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>New Transaction</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+  const formBody = (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -399,11 +409,20 @@ export function TransactionForm({
             />
 
             <Button type="submit" disabled={isPending} className="w-full">
-              {isPending ? "Saving..." : "Create Transaction"}
+              {isPending ? "Saving..." : editingId ? "Save Changes" : "Create Transaction"}
             </Button>
           </form>
-        </Form>
-      </CardContent>
+    </Form>
+  );
+
+  if (hideChrome) return formBody;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>New Transaction</CardTitle>
+      </CardHeader>
+      <CardContent>{formBody}</CardContent>
     </Card>
   );
 }
