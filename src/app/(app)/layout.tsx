@@ -1,9 +1,11 @@
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/rbac";
 import { AppNav } from "@/components/app-nav";
 import { UserMenu } from "@/components/user-menu";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+  if (user.mustChangePassword) redirect("/change-password");
   const canSeeMasterData = user.role === "OWNER" || user.role === "ACCOUNTANT";
 
   return (
