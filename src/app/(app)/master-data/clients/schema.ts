@@ -10,18 +10,29 @@ export const clientSchema = z.object({
 
 export type ClientFormValues = z.infer<typeof clientSchema>;
 
-export const clientRateSchema = z.object({
-  paymentMethodId: z.string().trim().min(1, "Required"),
-  effectiveFrom: z.string().trim().min(1, "Required"),
+// One row per payment method; ratePercent left as "" means "no rate set for
+// this method" (not zero) -- the rate lookup already treats a missing rate
+// as a hard stop when a transaction tries to use that method.
+const clientRateEntrySchema = z.object({
+  paymentMethodId: z.string().trim().min(1),
   ratePercent: z
     .string()
     .trim()
-    .min(1, "Required")
-    .refine((v) => !Number.isNaN(Number(v)) && Number(v) >= 0, {
+    .refine((v) => v === "" || (!Number.isNaN(Number(v)) && Number(v) >= 0), {
       message: "Must be a positive number",
     }),
   feeBasis: z.enum(["GROSS", "AFTER_MERCHANT_CHARGES"]),
-  notes: z.string().trim().optional().or(z.literal("")),
 });
 
-export type ClientRateFormValues = z.infer<typeof clientRateSchema>;
+export const clientRateBatchSchema = z
+  .object({
+    effectiveFrom: z.string().trim().min(1, "Required"),
+    entries: z.array(clientRateEntrySchema),
+    notes: z.string().trim().optional().or(z.literal("")),
+  })
+  .refine((d) => d.entries.some((e) => e.ratePercent.trim() !== ""), {
+    message: "Enter a rate for at least one payment method.",
+    path: ["entries"],
+  });
+
+export type ClientRateBatchFormValues = z.infer<typeof clientRateBatchSchema>;

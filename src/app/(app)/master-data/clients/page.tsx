@@ -30,6 +30,7 @@ export default async function ClientsPage() {
     status: c.status,
     rateHistory: c.rateHistory.map((r) => ({
       id: r.id,
+      paymentMethodId: r.paymentMethodId,
       effectiveFrom: format(r.effectiveFrom, "yyyy-MM-dd"),
       effectiveTo: r.effectiveTo ? format(r.effectiveTo, "yyyy-MM-dd") : null,
       ratePercent: r.ratePercent.toString(),

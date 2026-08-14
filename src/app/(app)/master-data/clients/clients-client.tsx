@@ -123,6 +123,7 @@ export function ClientsClient({
         onOpenChange={(open) => !open && setRateClientId(null)}
         title={rateClient ? `Rates — ${rateClient.name}` : ""}
         description="Rate changes only apply going forward; past transactions keep their original rate."
+        widthClassName="sm:max-w-2xl"
       >
         {rateClient && (
           <RateHistoryPanel
