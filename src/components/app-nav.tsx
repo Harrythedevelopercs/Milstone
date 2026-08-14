@@ -40,7 +40,7 @@ function NavLink({ href, label, active }: { href: string; label: string; active:
       className={cn(
         "border-b-2 pb-[18px] pt-[18px] text-sm transition-colors",
         active
-          ? "border-foreground font-medium text-foreground"
+          ? "border-primary font-medium text-foreground"
           : "border-transparent text-muted-foreground hover:border-muted-foreground/40 hover:text-foreground"
       )}
     >
