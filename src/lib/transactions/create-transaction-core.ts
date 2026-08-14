@@ -42,7 +42,10 @@ export async function createTransactionCore(
 ): Promise<CoreTransactionResult> {
   const [client, merchant] = await Promise.all([
     prisma.client.findUnique({ where: { id: input.clientId } }),
-    prisma.merchant.findUnique({ where: { id: input.merchantId } }),
+    prisma.merchant.findUnique({
+      where: { id: input.merchantId },
+      include: { company: { select: { employeePartnerId: true } } },
+    }),
   ]);
   if (!client || client.status !== "ACTIVE") {
     return { ok: false, error: "Client not found or inactive." };
@@ -108,7 +111,7 @@ export async function createTransactionCore(
         companyId: merchant.companyId,
         merchantId: input.merchantId,
         expectedBankId: input.expectedBankId,
-        employeePartnerId: merchant.employeePartnerId,
+        employeePartnerId: merchant.company.employeePartnerId,
         businessUnitId: merchant.businessUnitId,
         paymentMethodId: input.paymentMethodId,
         grossAmount: gross,

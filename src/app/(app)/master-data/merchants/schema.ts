@@ -13,7 +13,6 @@ export const merchantSchema = z.object({
   businessUnitId: z.string().optional(),
   processor: z.string().trim().min(1, "Required"),
   settlementBankId: z.string().trim().min(1, "Required"),
-  employeePartnerId: z.string().optional(),
   dailyLimit: optionalNumber,
   monthlyLimit: optionalNumber,
   perTxnLimit: optionalNumber,

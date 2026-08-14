@@ -31,7 +31,6 @@ export function MerchantForm({
   companies,
   businessUnits,
   bankAccounts,
-  employeePartners,
   onSuccess,
 }: {
   defaultValues: MerchantFormValues;
@@ -39,7 +38,6 @@ export function MerchantForm({
   companies: Option[];
   businessUnits: Option[];
   bankAccounts: Option[];
-  employeePartners: Option[];
   onSuccess: () => void;
 }) {
   const { run, isPending } = useCrudAction();
@@ -164,38 +162,6 @@ export function MerchantForm({
                   {bankAccounts.map((b) => (
                     <SelectItem key={b.id} value={b.id}>
                       {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="employeePartnerId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Employee partner</FormLabel>
-              <Select
-                value={field.value || "none"}
-                onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
-                items={[
-                  { value: "none", label: "None" },
-                  ...employeePartners.map((e) => ({ value: e.id, label: e.name })),
-                ]}
-              >
-                <FormControl>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {employeePartners.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

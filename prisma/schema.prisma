@@ -221,25 +221,24 @@ model Partner {
   updatedAt          DateTime     @updatedAt @map("updated_at")
 
   user          User?           @relation(fields: [userId], references: [id])
-  companies     Company[]
   ledgerEntries PartnerLedger[]
 
   @@map("partners")
 }
 
 model Company {
-  id        String       @id @default(cuid())
-  name      String
-  legalName String?      @map("legal_name")
-  partnerId String       @map("partner_id")
-  status    RecordStatus @default(ACTIVE)
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
+  id                String       @id @default(cuid())
+  name              String
+  legalName         String?      @map("legal_name")
+  employeePartnerId String?      @map("employee_partner_id")
+  status            RecordStatus @default(ACTIVE)
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
 
-  partner      Partner       @relation(fields: [partnerId], references: [id])
-  merchants    Merchant[]
-  transactions Transaction[]
-  expenses     Expense[]
+  employeePartner Employee?     @relation(fields: [employeePartnerId], references: [id])
+  merchants       Merchant[]
+  transactions    Transaction[]
+  expenses        Expense[]
 
   @@map("companies")
 }
@@ -273,7 +272,7 @@ model Employee {
   updatedAt         DateTime     @updatedAt @map("updated_at")
 
   user                         User?                   @relation(fields: [userId], references: [id])
-  merchants                    Merchant[]
+  companies                    Company[]
   transactions                 Transaction[]
   employeePartnerLedgerEntries EmployeePartnerLedger[]
   salaryLedgerEntries          SalaryLedger[]
@@ -289,7 +288,6 @@ model Merchant {
   businessUnitId        String?  @map("business_unit_id")
   processor             String
   settlementBankId      String   @map("settlement_bank_id")
-  employeePartnerId     String?  @map("employee_partner_id")
   dailyLimit            Decimal? @map("daily_limit") @db.Decimal(18, 2)
   monthlyLimit          Decimal? @map("monthly_limit") @db.Decimal(18, 2)
   perTxnLimit           Decimal? @map("per_txn_limit") @db.Decimal(18, 2)
@@ -299,10 +297,9 @@ model Merchant {
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
-  company         Company       @relation(fields: [companyId], references: [id])
-  businessUnit    BusinessUnit? @relation(fields: [businessUnitId], references: [id])
-  settlementBank  BankAccount   @relation(fields: [settlementBankId], references: [id])
-  employeePartner Employee?     @relation(fields: [employeePartnerId], references: [id])
+  company        Company       @relation(fields: [companyId], references: [id])
+  businessUnit   BusinessUnit? @relation(fields: [businessUnitId], references: [id])
+  settlementBank BankAccount   @relation(fields: [settlementBankId], references: [id])
 
   feeRules          MerchantFeeRule[]
   transactions      Transaction[]

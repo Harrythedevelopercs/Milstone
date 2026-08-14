@@ -23,17 +23,17 @@ import { useCrudAction } from "@/hooks/use-crud-action";
 import { companySchema, type CompanyFormValues } from "./schema";
 import { createCompany, updateCompany } from "./actions";
 
-export type PartnerOption = { id: string; name: string };
+export type EmployeePartnerOption = { id: string; name: string };
 
 export function CompanyForm({
   defaultValues,
   editingId,
-  partners,
+  employeePartners,
   onSuccess,
 }: {
   defaultValues: CompanyFormValues;
   editingId: string | null;
-  partners: PartnerOption[];
+  employeePartners: EmployeePartnerOption[];
   onSuccess: () => void;
 }) {
   const { run, isPending } = useCrudAction();
@@ -80,28 +80,36 @@ export function CompanyForm({
         />
         <FormField
           control={form.control}
-          name="partnerId"
+          name="employeePartnerId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Partner</FormLabel>
+              <FormLabel>Employee Partner</FormLabel>
               <Select
-                value={field.value}
-                onValueChange={field.onChange}
-                items={partners.map((p) => ({ value: p.id, label: p.name }))}
+                value={field.value || "none"}
+                onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
+                items={[
+                  { value: "none", label: "None" },
+                  ...employeePartners.map((p) => ({ value: p.id, label: p.name })),
+                ]}
               >
                 <FormControl>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a partner" />
+                    <SelectValue placeholder="None" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {partners.map((p) => (
+                  <SelectItem value="none">None</SelectItem>
+                  {employeePartners.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-sm text-muted-foreground">
+                The employee partner earns 10% of FoundaPay&apos;s revenue from every merchant
+                under this company.
+              </p>
               <FormMessage />
             </FormItem>
           )}

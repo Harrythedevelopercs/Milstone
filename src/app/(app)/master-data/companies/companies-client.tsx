@@ -7,24 +7,24 @@ import { CrudSheet } from "@/components/master-data/crud-sheet";
 import { StatusBadge } from "@/components/master-data/status-badge";
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { setCompanyStatus } from "./actions";
-import { CompanyForm, type PartnerOption } from "./company-form";
+import { CompanyForm, type EmployeePartnerOption } from "./company-form";
 import type { CompanyFormValues } from "./schema";
 
 export type CompanyRow = {
   id: string;
   name: string;
   legalName: string | null;
-  partnerId: string;
+  employeePartnerId: string | null;
   status: "ACTIVE" | "INACTIVE";
-  partner: { name: string };
+  employeePartner: { name: string } | null;
 };
 
 export function CompaniesClient({
   rows,
-  partners,
+  employeePartners,
 }: {
   rows: CompanyRow[];
-  partners: PartnerOption[];
+  employeePartners: EmployeePartnerOption[];
 }) {
   const [editing, setEditing] = useState<CompanyRow | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -47,8 +47,12 @@ export function CompaniesClient({
   }
 
   const defaultValues: CompanyFormValues = editing
-    ? { name: editing.name, legalName: editing.legalName ?? "", partnerId: editing.partnerId }
-    : { name: "", legalName: "", partnerId: "" };
+    ? {
+        name: editing.name,
+        legalName: editing.legalName ?? "",
+        employeePartnerId: editing.employeePartnerId ?? "",
+      }
+    : { name: "", legalName: "", employeePartnerId: "" };
 
   return (
     <div className="space-y-4">
@@ -63,7 +67,11 @@ export function CompaniesClient({
         emptyMessage="No companies yet."
         columns={[
           { key: "name", header: "Name", render: (r) => r.name },
-          { key: "partner", header: "Partner", render: (r) => r.partner.name },
+          {
+            key: "employeePartner",
+            header: "Employee Partner",
+            render: (r) => r.employeePartner?.name ?? "—",
+          },
           {
             key: "status",
             header: "Status",
@@ -96,7 +104,7 @@ export function CompaniesClient({
           key={editing?.id ?? "new"}
           defaultValues={defaultValues}
           editingId={editing?.id ?? null}
-          partners={partners}
+          employeePartners={employeePartners}
           onSuccess={() => setSheetOpen(false)}
         />
       </CrudSheet>

@@ -15,7 +15,7 @@ export async function createCompany(input: unknown): Promise<ActionResult> {
     data: {
       name: parsed.data.name,
       legalName: parsed.data.legalName || null,
-      partnerId: parsed.data.partnerId,
+      employeePartnerId: parsed.data.employeePartnerId || null,
     },
   });
   revalidatePath("/master-data/companies");
@@ -32,7 +32,7 @@ export async function updateCompany(id: string, input: unknown): Promise<ActionR
     data: {
       name: parsed.data.name,
       legalName: parsed.data.legalName || null,
-      partnerId: parsed.data.partnerId,
+      employeePartnerId: parsed.data.employeePartnerId || null,
     },
   });
   revalidatePath("/master-data/companies");

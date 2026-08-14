@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { MerchantsClient } from "./merchants-client";
 
 export default async function MerchantsPage() {
-  const [merchants, companies, businessUnits, bankAccounts, employeePartners, paymentMethods] =
+  const [merchants, companies, businessUnits, bankAccounts, paymentMethods] =
     await Promise.all([
       prisma.merchant.findMany({
         orderBy: { name: "asc" },
@@ -26,11 +26,6 @@ export default async function MerchantsPage() {
         orderBy: { name: "asc" },
         select: { id: true, name: true },
       }),
-      prisma.employee.findMany({
-        where: { isEmployeePartner: true, status: "ACTIVE" },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true },
-      }),
       prisma.paymentMethod.findMany({
         where: { status: "ACTIVE" },
         orderBy: { name: "asc" },
@@ -45,7 +40,6 @@ export default async function MerchantsPage() {
     businessUnitId: m.businessUnitId,
     processor: m.processor,
     settlementBankId: m.settlementBankId,
-    employeePartnerId: m.employeePartnerId,
     dailyLimit: m.dailyLimit?.toString() ?? null,
     monthlyLimit: m.monthlyLimit?.toString() ?? null,
     perTxnLimit: m.perTxnLimit?.toString() ?? null,
@@ -71,7 +65,6 @@ export default async function MerchantsPage() {
       companies={companies}
       businessUnits={businessUnits}
       bankAccounts={bankAccounts}
-      employeePartners={employeePartners}
       paymentMethods={paymentMethods}
     />
   );

@@ -18,7 +18,6 @@ export type MerchantRow = {
   businessUnitId: string | null;
   processor: string;
   settlementBankId: string;
-  employeePartnerId: string | null;
   dailyLimit: string | null;
   monthlyLimit: string | null;
   perTxnLimit: string | null;
@@ -34,14 +33,12 @@ export function MerchantsClient({
   companies,
   businessUnits,
   bankAccounts,
-  employeePartners,
   paymentMethods,
 }: {
   rows: MerchantRow[];
   companies: Option[];
   businessUnits: Option[];
   bankAccounts: Option[];
-  employeePartners: Option[];
   paymentMethods: { id: string; name: string }[];
 }) {
   const [editing, setEditing] = useState<MerchantRow | null>(null);
@@ -74,7 +71,6 @@ export function MerchantsClient({
         businessUnitId: editing.businessUnitId ?? "",
         processor: editing.processor,
         settlementBankId: editing.settlementBankId,
-        employeePartnerId: editing.employeePartnerId ?? "",
         dailyLimit: editing.dailyLimit ?? "",
         monthlyLimit: editing.monthlyLimit ?? "",
         perTxnLimit: editing.perTxnLimit ?? "",
@@ -87,7 +83,6 @@ export function MerchantsClient({
         businessUnitId: "",
         processor: "",
         settlementBankId: "",
-        employeePartnerId: "",
         dailyLimit: "",
         monthlyLimit: "",
         perTxnLimit: "",
@@ -153,7 +148,6 @@ export function MerchantsClient({
           companies={companies}
           businessUnits={businessUnits}
           bankAccounts={bankAccounts}
-          employeePartners={employeePartners}
           onSuccess={() => setSheetOpen(false)}
         />
       </CrudSheet>

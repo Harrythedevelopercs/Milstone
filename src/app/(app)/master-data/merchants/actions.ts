@@ -15,7 +15,6 @@ function toData(parsed: ReturnType<typeof merchantSchema.safeParse>) {
     businessUnitId: d.businessUnitId || null,
     processor: d.processor,
     settlementBankId: d.settlementBankId,
-    employeePartnerId: d.employeePartnerId || null,
     dailyLimit: d.dailyLimit || null,
     monthlyLimit: d.monthlyLimit || null,
     perTxnLimit: d.perTxnLimit || null,
