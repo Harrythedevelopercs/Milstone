@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DownloadButtons } from "@/components/exports/download-buttons";
 import {
   Table,
   TableBody,
@@ -27,11 +28,14 @@ export default async function MerchantReconciliationPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Merchant Reconciliation</h1>
-        <p className="text-sm text-muted-foreground">
-          Book (expected) vs actual deposits, per merchant, plus anything still awaiting settlement.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Merchant Reconciliation</h1>
+          <p className="text-sm text-muted-foreground">
+            Book (expected) vs actual deposits, per merchant, plus anything still awaiting settlement.
+          </p>
+        </div>
+        <DownloadButtons reportType="merchant-reconciliation" />
       </div>
 
       {merchants.map((m) => {

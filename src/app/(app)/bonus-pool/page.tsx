@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DateRangeHeader } from "@/components/exports/date-range-header";
 import {
   Table,
   TableBody,
@@ -11,7 +12,15 @@ import {
 } from "@/components/ui/table";
 import { AllocatePanel } from "./allocate-panel";
 
-export default async function BonusPoolPage() {
+export default async function BonusPoolPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from, to } = await searchParams;
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(to) : null;
+
   const [entries, employees] = await Promise.all([
     prisma.bonusPoolLedger.findMany({
       orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
@@ -26,17 +35,19 @@ export default async function BonusPoolPage() {
 
   const balance = entries.reduce((sum, e) => sum + Number(e.amount), 0);
 
-  const rows = entries.reduce<Array<(typeof entries)[number] & { runningBalance: number }>>(
-    (acc, e) => {
-      const previous = acc.length > 0 ? acc[acc.length - 1].runningBalance : 0;
-      acc.push({ ...e, runningBalance: previous + Number(e.amount) });
-      return acc;
-    },
-    []
-  );
+  // Running balance must include everything before the range starts, so we
+  // compute it over full history and only display rows inside the range.
+  const rows: Array<(typeof entries)[number] & { runningBalance: number }> = [];
+  let running = 0;
+  for (const e of entries) {
+    running += Number(e.amount);
+    const inRange = (!fromDate || e.entryDate >= fromDate) && (!toDate || e.entryDate <= toDate);
+    if (inRange) rows.push({ ...e, runningBalance: running });
+  }
 
   return (
     <div className="space-y-4">
+      <DateRangeHeader from={from} to={to} reportType="bonus-pool" />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import { DateRangeHeader } from "@/components/exports/date-range-header";
 import {
   Table,
   TableBody,
@@ -15,10 +16,15 @@ import {
 // and why, in plain language.
 export default async function ClientExternalStatementPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const { id } = await params;
+  const { from, to } = await searchParams;
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(to) : null;
 
   const client = await prisma.client.findUnique({ where: { id } });
   if (!client) notFound();
@@ -28,15 +34,16 @@ export default async function ClientExternalStatementPage({
     orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
   });
 
-  const rows = entries.reduce<Array<(typeof entries)[number] & { runningBalance: number }>>(
-    (acc, e) => {
-      const previous = acc.length > 0 ? acc[acc.length - 1].runningBalance : 0;
-      acc.push({ ...e, runningBalance: previous + Number(e.amount) });
-      return acc;
-    },
-    []
-  );
-  const balance = rows.length > 0 ? rows[rows.length - 1].runningBalance : 0;
+  // Running balance must include everything before the range starts, so we
+  // compute it over full history and only display rows inside the range.
+  const rows: Array<(typeof entries)[number] & { runningBalance: number }> = [];
+  let running = 0;
+  for (const e of entries) {
+    running += Number(e.amount);
+    const inRange = (!fromDate || e.entryDate >= fromDate) && (!toDate || e.entryDate <= toDate);
+    if (inRange) rows.push({ ...e, runningBalance: running });
+  }
+  const balance = running;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 rounded-lg border bg-white p-8 print:border-0">
@@ -47,6 +54,13 @@ export default async function ClientExternalStatementPage({
         </div>
         <p className="text-sm text-muted-foreground">As of {format(new Date(), "yyyy-MM-dd")}</p>
       </div>
+
+      <DateRangeHeader
+        from={from}
+        to={to}
+        reportType="client-external-statement"
+        exportParams={{ id }}
+      />
 
       <div>
         <p className="text-sm text-muted-foreground">

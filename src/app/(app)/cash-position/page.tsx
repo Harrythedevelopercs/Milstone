@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DownloadButtons } from "@/components/exports/download-buttons";
 
 const TYPE_LABEL: Record<string, string> = { BANK: "Bank", USDT: "USDT", CASH: "Cash" };
 
@@ -40,11 +41,14 @@ export default async function CashPositionPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold">Cash Position</h1>
-        <p className="text-sm text-muted-foreground">
-          Actual money across every bank, USDT wallet, and cash drawer right now.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Cash Position</h1>
+          <p className="text-sm text-muted-foreground">
+            Actual money across every bank, USDT wallet, and cash drawer right now.
+          </p>
+        </div>
+        <DownloadButtons reportType="cash-position" />
       </div>
 
       <Card>

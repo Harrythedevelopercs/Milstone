@@ -12,6 +12,7 @@ import {
   RunEpCommissionsPanel,
   RunPartnerDistributionPanel,
 } from "./run-panels";
+import { DownloadButtons } from "@/components/exports/download-buttons";
 
 export default async function DistributionsPage({
   searchParams,
@@ -65,21 +66,24 @@ export default async function DistributionsPage({
             Run these in order, once per month: payroll, then employee-partner commissions, then partner profit distribution.
           </p>
         </div>
-        <form method="get" className="flex items-center gap-2">
-          <label htmlFor="month" className="text-sm text-muted-foreground">
-            Month
-          </label>
-          <input
-            id="month"
-            name="month"
-            type="month"
-            defaultValue={accountingMonth}
-            className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
-          />
-          <button type="submit" className="h-8 rounded-lg border border-input px-3 text-sm hover:bg-muted">
-            Go
-          </button>
-        </form>
+        <div className="flex items-end gap-3">
+          <form method="get" className="flex items-center gap-2">
+            <label htmlFor="month" className="text-sm text-muted-foreground">
+              Month
+            </label>
+            <input
+              id="month"
+              name="month"
+              type="month"
+              defaultValue={accountingMonth}
+              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            />
+            <button type="submit" className="h-8 rounded-lg border border-input px-3 text-sm hover:bg-muted">
+              Go
+            </button>
+          </form>
+          <DownloadButtons reportType="distributions" params={{ month: accountingMonth }} />
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">

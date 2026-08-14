@@ -23,7 +23,11 @@ export default async function ConsolidatedPnlPage({
 
   return (
     <div className="space-y-4">
-      <MonthPickerHeader title="Consolidated P&L" accountingMonth={accountingMonth} />
+      <MonthPickerHeader
+        title="Consolidated P&L"
+        accountingMonth={accountingMonth}
+        downloadReportType="consolidated-pnl"
+      />
       <Card>
         <CardContent className="max-w-md divide-y pt-6">
           <Line label="FP Revenue" value={pnl.revenue.toFixed(2)} />

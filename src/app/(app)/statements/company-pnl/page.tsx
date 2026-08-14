@@ -33,7 +33,11 @@ export default async function CompanyPnlPage({
 
   return (
     <div className="space-y-4">
-      <MonthPickerHeader title="Company P&L" accountingMonth={accountingMonth} />
+      <MonthPickerHeader
+        title="Company P&L"
+        accountingMonth={accountingMonth}
+        downloadReportType="company-pnl"
+      />
       <p className="text-sm text-muted-foreground">
         Revenue and expenses tied directly to each company&apos;s merchants; salaries and product
         sales aren&apos;t attributable to a single company and only appear in the consolidated view.

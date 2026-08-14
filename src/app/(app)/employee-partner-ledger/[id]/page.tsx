@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DateRangeHeader } from "@/components/exports/date-range-header";
 import {
   Table,
   TableBody,
@@ -13,10 +14,15 @@ import {
 
 export default async function EmployeePartnerLedgerDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const { id } = await params;
+  const { from, to } = await searchParams;
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(to) : null;
 
   const employee = await prisma.employee.findUnique({ where: { id } });
   if (!employee) notFound();
@@ -26,18 +32,25 @@ export default async function EmployeePartnerLedgerDetailPage({
     orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
   });
 
-  const rows = entries.reduce<Array<(typeof entries)[number] & { runningBalance: number }>>(
-    (acc, e) => {
-      const previous = acc.length > 0 ? acc[acc.length - 1].runningBalance : 0;
-      acc.push({ ...e, runningBalance: previous + Number(e.amount) });
-      return acc;
-    },
-    []
-  );
-  const balance = rows.length > 0 ? rows[rows.length - 1].runningBalance : 0;
+  // Running balance must include everything before the range starts, so we
+  // compute it over full history and only display rows inside the range.
+  const rows: Array<(typeof entries)[number] & { runningBalance: number }> = [];
+  let running = 0;
+  for (const e of entries) {
+    running += Number(e.amount);
+    const inRange = (!fromDate || e.entryDate >= fromDate) && (!toDate || e.entryDate <= toDate);
+    if (inRange) rows.push({ ...e, runningBalance: running });
+  }
+  const balance = running;
 
   return (
     <div className="space-y-4">
+      <DateRangeHeader
+        from={from}
+        to={to}
+        reportType="employee-partner-ledger"
+        exportParams={{ id }}
+      />
       <Card>
         <CardHeader>
           <CardTitle>{employee.name}</CardTitle>

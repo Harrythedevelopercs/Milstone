@@ -46,7 +46,11 @@ export default async function CashFlowPage({
 
   return (
     <div className="space-y-4">
-      <MonthPickerHeader title="Cash Flow" accountingMonth={accountingMonth} />
+      <MonthPickerHeader
+        title="Cash Flow"
+        accountingMonth={accountingMonth}
+        downloadReportType="cash-flow"
+      />
 
       <Card>
         <CardContent className="pt-6">

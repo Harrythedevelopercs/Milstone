@@ -1,0 +1,30 @@
+import type { ExportPayload } from "./types";
+import { fetchConsolidatedPnl } from "./reports/consolidated-pnl";
+import { fetchCompanyPnl } from "./reports/company-pnl";
+import { fetchBusinessUnitPnl } from "./reports/business-unit-pnl";
+import { fetchCashFlow } from "./reports/cash-flow";
+import { fetchMerchantStatement } from "./reports/merchant-statement";
+import { fetchClientExternalStatement } from "./reports/client-external-statement";
+import { fetchCashPosition } from "./reports/cash-position";
+import { fetchEmployeePartnerLedger } from "./reports/employee-partner-ledger";
+import { fetchPartnerLedger } from "./reports/partner-ledger";
+import { fetchBonusPool } from "./reports/bonus-pool";
+import { fetchMerchantReconciliation } from "./reports/merchant-reconciliation";
+import { fetchDistributions } from "./reports/distributions";
+
+export type ReportFetcher = (params: URLSearchParams) => Promise<ExportPayload>;
+
+export const REPORT_REGISTRY: Record<string, ReportFetcher> = {
+  "consolidated-pnl": fetchConsolidatedPnl,
+  "company-pnl": fetchCompanyPnl,
+  "business-unit-pnl": fetchBusinessUnitPnl,
+  "cash-flow": fetchCashFlow,
+  "merchant-statement": fetchMerchantStatement,
+  "client-external-statement": fetchClientExternalStatement,
+  "cash-position": fetchCashPosition,
+  "employee-partner-ledger": fetchEmployeePartnerLedger,
+  "partner-ledger": fetchPartnerLedger,
+  "bonus-pool": fetchBonusPool,
+  "merchant-reconciliation": fetchMerchantReconciliation,
+  distributions: fetchDistributions,
+};

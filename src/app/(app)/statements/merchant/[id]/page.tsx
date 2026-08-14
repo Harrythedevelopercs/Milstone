@@ -4,6 +4,7 @@ import Decimal from "decimal.js";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TransactionStatusBadge } from "@/components/transactions/status-badge";
+import { DateRangeHeader } from "@/components/exports/date-range-header";
 import {
   Table,
   TableBody,
@@ -15,16 +16,31 @@ import {
 
 export default async function MerchantStatementPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const { id } = await params;
+  const { from, to } = await searchParams;
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(to) : null;
 
   const merchant = await prisma.merchant.findUnique({ where: { id } });
   if (!merchant) notFound();
 
   const transactions = await prisma.transaction.findMany({
-    where: { merchantId: id },
+    where: {
+      merchantId: id,
+      ...(fromDate || toDate
+        ? {
+            transactionDate: {
+              ...(fromDate ? { gte: fromDate } : {}),
+              ...(toDate ? { lte: toDate } : {}),
+            },
+          }
+        : {}),
+    },
     orderBy: { transactionDate: "asc" },
     include: {
       client: { select: { name: true } },
@@ -49,6 +65,13 @@ export default async function MerchantStatementPage({
 
   return (
     <div className="space-y-4">
+      <DateRangeHeader
+        title="Merchant Statement"
+        from={from}
+        to={to}
+        reportType="merchant-statement"
+        exportParams={{ id }}
+      />
       <Card>
         <CardHeader>
           <CardTitle>{merchant.name} — Merchant Statement</CardTitle>

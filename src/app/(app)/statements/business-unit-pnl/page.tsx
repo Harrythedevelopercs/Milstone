@@ -33,7 +33,11 @@ export default async function BusinessUnitPnlPage({
 
   return (
     <div className="space-y-4">
-      <MonthPickerHeader title="Business Unit P&L" accountingMonth={accountingMonth} />
+      <MonthPickerHeader
+        title="Business Unit P&L"
+        accountingMonth={accountingMonth}
+        downloadReportType="business-unit-pnl"
+      />
       <p className="text-sm text-muted-foreground">
         Includes transaction revenue, product/service sales gross profit, and expenses tagged to
         each business unit. Salaries aren&apos;t tied to a business unit.
