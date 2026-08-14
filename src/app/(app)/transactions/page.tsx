@@ -15,6 +15,7 @@ import { TransactionStatusBadge } from "@/components/transactions/status-badge";
 import { ReviewActions } from "./review-actions";
 import { MarkSettledAction } from "./settlement-actions";
 import { BulkSettleToolbar } from "./bulk-settle-toolbar";
+import { RcvActions } from "./rcv-actions";
 
 export default async function TransactionsPage() {
   const [transactions, merchants] = await Promise.all([
@@ -105,6 +106,7 @@ export default async function TransactionsPage() {
                     <div className="flex justify-end gap-2">
                       <ReviewActions id={t.id} status={t.status} />
                       <MarkSettledAction id={t.id} status={t.status} />
+                      <RcvActions id={t.id} status={t.status} />
                     </div>
                   </TableCell>
                 </TableRow>

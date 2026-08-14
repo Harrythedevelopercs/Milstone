@@ -13,6 +13,7 @@ const MONEY_LINKS = [
   { href: "/product-sales", label: "Product/Service Sales" },
   { href: "/third-party", label: "Third-Party Settlements" },
   { href: "/transfers", label: "Internal Transfers" },
+  { href: "/refunds-chargebacks-voids", label: "Refunds/Chargebacks/Voids" },
 ];
 
 const LEDGER_LINKS = [

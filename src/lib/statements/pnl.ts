@@ -1,12 +1,6 @@
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/prisma";
-
-const REVENUE_RECOGNIZED_EXCLUDED_STATUSES = [
-  "ENTERED",
-  "SUBMITTED",
-  "DETAILS_REQUESTED",
-  "REJECTED",
-] as const;
+import { REVENUE_RECOGNIZED_EXCLUDED_STATUSES } from "@/lib/transactions/revenue-status";
 
 export type PnlScope =
   | { level: "consolidated" }

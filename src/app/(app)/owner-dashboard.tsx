@@ -3,14 +3,7 @@ import Decimal from "decimal.js";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent } from "@/components/ui/card";
 import { calculatePnl } from "@/lib/statements/pnl";
-import type { TransactionStatus } from "@/generated/prisma/client";
-
-const REVENUE_STATUSES_EXCLUDED: TransactionStatus[] = [
-  "ENTERED",
-  "SUBMITTED",
-  "DETAILS_REQUESTED",
-  "REJECTED",
-];
+import { REVENUE_RECOGNIZED_EXCLUDED_STATUSES as REVENUE_STATUSES_EXCLUDED } from "@/lib/transactions/revenue-status";
 
 function StatCard({
   label,
@@ -49,13 +42,14 @@ export async function OwnerDashboard({ accountingMonth }: { accountingMonth: str
     partnerLedgerAgg,
     bonusPoolAgg,
     diffBatches,
+    outstandingRcvAgg,
   ] = await Promise.all([
     prisma.bankAccount.findMany({
       where: { active: true },
       include: { ledgerEntries: { select: { usdValue: true } } },
     }),
     prisma.transaction.aggregate({
-      where: { accountingMonth, status: { notIn: REVENUE_STATUSES_EXCLUDED } },
+      where: { accountingMonth, status: { notIn: [...REVENUE_STATUSES_EXCLUDED] } },
       _sum: { grossAmount: true },
     }),
     calculatePnl(accountingMonth, { level: "consolidated" }),
@@ -66,13 +60,18 @@ export async function OwnerDashboard({ accountingMonth }: { accountingMonth: str
       _count: true,
     }),
     prisma.transaction.aggregate({
-      where: { accountingMonth, status: { notIn: REVENUE_STATUSES_EXCLUDED } },
+      where: { accountingMonth, status: { notIn: [...REVENUE_STATUSES_EXCLUDED] } },
       _sum: { merchantReserveAmount: true, fpReserveAmount: true },
     }),
     prisma.employeePartnerLedger.aggregate({ _sum: { amount: true } }),
     prisma.partnerLedger.aggregate({ _sum: { amount: true } }),
     prisma.bonusPoolLedger.aggregate({ _sum: { amount: true } }),
     prisma.settlementBatch.count({ where: { status: "DIFFERENCE" } }),
+    prisma.refundChargebackVoid.aggregate({
+      where: { status: "OPEN" },
+      _sum: { amount: true },
+      _count: true,
+    }),
   ]);
 
   const cashTotal = bankAccounts.reduce(
@@ -124,6 +123,11 @@ export async function OwnerDashboard({ accountingMonth }: { accountingMonth: str
           value={String(diffBatches)}
           tone={diffBatches > 0 ? "negative" : undefined}
         />
+        <StatCard
+          label="Outstanding Chargebacks/Refunds"
+          value={`${new Decimal(outstandingRcvAgg._sum.amount ?? 0).toFixed(2)} (${outstandingRcvAgg._count})`}
+          tone={outstandingRcvAgg._count > 0 ? "negative" : undefined}
+        />
       </div>
 
       <div className="flex flex-wrap gap-2 text-sm">
@@ -141,6 +145,10 @@ export async function OwnerDashboard({ accountingMonth }: { accountingMonth: str
         <span className="text-muted-foreground">·</span>
         <Link href="/merchant-reconciliation" className="text-muted-foreground hover:text-foreground hover:underline">
           View Merchant Reconciliation
+        </Link>
+        <span className="text-muted-foreground">·</span>
+        <Link href="/refunds-chargebacks-voids" className="text-muted-foreground hover:text-foreground hover:underline">
+          View Refunds/Chargebacks/Voids
         </Link>
       </div>
     </div>

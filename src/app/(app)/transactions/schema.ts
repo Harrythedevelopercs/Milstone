@@ -45,3 +45,13 @@ export const transactionSchema = z.object({
 });
 
 export type TransactionFormValues = z.infer<typeof transactionSchema>;
+
+export const rcvSchema = z.object({
+  transactionId: z.string().trim().min(1, "Required"),
+  type: z.enum(["REFUND", "CHARGEBACK", "VOID"]),
+  eventDate: z.string().trim().min(1, "Required"),
+  reasonCode: z.string().trim().optional().or(z.literal("")),
+  notes: z.string().trim().optional().or(z.literal("")),
+});
+
+export type RcvFormValues = z.infer<typeof rcvSchema>;

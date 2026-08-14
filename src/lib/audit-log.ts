@@ -9,7 +9,10 @@ export type AuditAction =
   | "CREATE"
   | "CLOSE"
   | "REOPEN"
-  | "MARK_SETTLED";
+  | "MARK_SETTLED"
+  | "REFUND"
+  | "CHARGEBACK"
+  | "VOID";
 
 export async function writeAuditLog(
   tx: Prisma.TransactionClient,

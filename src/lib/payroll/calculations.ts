@@ -1,16 +1,12 @@
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/prisma";
+import { REVENUE_RECOGNIZED_EXCLUDED_STATUSES } from "@/lib/transactions/revenue-status";
 
 // Revenue is recognized the moment a transaction is approved and never
-// reversed by a later chargeback (brief section 5) -- so any status past
-// the pre-approval stage counts, with no special-casing for what happens
-// to the transaction afterward.
-const REVENUE_RECOGNIZED_EXCLUDED_STATUSES = [
-  "ENTERED",
-  "SUBMITTED",
-  "DETAILS_REQUESTED",
-  "REJECTED",
-] as const;
+// reversed by a later refund/chargeback (brief section 5) -- so any status
+// past the pre-approval stage counts, with no special-casing for what
+// happens to the transaction afterward. Void is the one exception (see
+// revenue-status.ts): it never really happened, so it's excluded too.
 
 export async function calculateMonthRevenue(accountingMonth: string): Promise<Decimal> {
   const result = await prisma.transaction.aggregate({

@@ -1,14 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import Decimal from "decimal.js";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit-log";
 import { createTransactionCore } from "@/lib/transactions/create-transaction-core";
 import { postClientLedgerForTransaction } from "@/lib/transactions/post-ledger";
+import { accountingMonthOf } from "@/lib/transactions/transaction-id";
 import { assertMonthOpen } from "@/lib/month-close/guard";
-import { transactionSchema } from "./schema";
+import { transactionSchema, rcvSchema } from "./schema";
 
 export type CreateTransactionResult =
   | { ok: true; id: string }
@@ -246,5 +248,122 @@ export async function requestTransactionDetails(id: string, note: string): Promi
   });
 
   revalidatePath("/transactions");
+  return { ok: true };
+}
+
+// A transaction is not yet real (pre-approval) or has already been reversed
+// once -- can't refund/chargeback/void twice.
+const RCV_INELIGIBLE_STATUSES = [
+  "ENTERED",
+  "SUBMITTED",
+  "DETAILS_REQUESTED",
+  "REJECTED",
+  "VOID",
+  "REFUNDED",
+  "CHARGEBACK",
+] as const;
+
+const RCV_TRANSACTION_STATUS = {
+  REFUND: "REFUNDED",
+  CHARGEBACK: "CHARGEBACK",
+  VOID: "VOID",
+} as const;
+
+const RCV_AUDIT_ACTION = {
+  REFUND: "REFUND",
+  CHARGEBACK: "CHARGEBACK",
+  VOID: "VOID",
+} as const;
+
+// Refund/Chargeback/Void: full-amount only, non-destructive. The original
+// transaction's financial fields (gross, fpFee, clientNetPayable) are never
+// touched -- only its status changes, so the original math stays visible
+// alongside the new linked RefundChargebackVoid row. FP's fee stays counted
+// as revenue for Refund/Chargeback (the client bears that cost -- brief
+// section 5); Void is excluded from revenue entirely via
+// REVENUE_RECOGNIZED_EXCLUDED_STATUSES since it never really happened.
+export async function createRcv(input: unknown): Promise<ReviewResult> {
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const parsed = rcvSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  const txn = await prisma.transaction.findUnique({ where: { id: d.transactionId } });
+  if (!txn) return { ok: false, error: "Transaction not found." };
+  if ((RCV_INELIGIBLE_STATUSES as readonly string[]).includes(txn.status)) {
+    return { ok: false, error: `Cannot ${d.type.toLowerCase()} a transaction with status ${txn.status}.` };
+  }
+  if (txn.clientNetPayable === null) {
+    return { ok: false, error: "Transaction has no computed client payable amount." };
+  }
+
+  const eventDate = new Date(d.eventDate);
+  if (Number.isNaN(eventDate.getTime())) return { ok: false, error: "Invalid event date." };
+  const accountingMonth = accountingMonthOf(eventDate);
+  const monthError = await assertMonthOpen(accountingMonth);
+  if (monthError) return { ok: false, error: monthError };
+
+  const clawback = new Decimal(txn.clientNetPayable).negated();
+  const newStatus = RCV_TRANSACTION_STATUS[d.type];
+  const typeLabel = d.type.charAt(0) + d.type.slice(1).toLowerCase();
+
+  await prisma.$transaction(async (tx) => {
+    const rcv = await tx.refundChargebackVoid.create({
+      data: {
+        type: d.type,
+        originalTransactionId: txn.id,
+        accountingMonth,
+        eventDate,
+        amount: txn.grossAmount,
+        reasonCode: d.reasonCode || null,
+        status: "OPEN",
+        notes: d.notes || null,
+        createdById: user.id,
+      },
+    });
+
+    await tx.clientLedger.create({
+      data: {
+        clientId: txn.clientId,
+        entryDate: eventDate,
+        accountingMonth,
+        amount: clawback.toFixed(2),
+        sourceType: "RCV",
+        sourceId: rcv.id,
+        transactionId: txn.id,
+        description: `${typeLabel} of ${txn.id}`,
+        createdById: user.id,
+      },
+    });
+
+    const updated = await tx.transaction.update({
+      where: { id: txn.id },
+      data: { status: newStatus },
+    });
+
+    await writeAuditLog(tx, {
+      entityType: "RefundChargebackVoid",
+      entityId: rcv.id,
+      transactionId: txn.id,
+      action: "CREATE",
+      performedById: user.id,
+      afterSnapshot: JSON.parse(JSON.stringify(rcv)),
+      notes: d.notes || undefined,
+    });
+    await writeAuditLog(tx, {
+      entityType: "Transaction",
+      entityId: txn.id,
+      transactionId: txn.id,
+      action: RCV_AUDIT_ACTION[d.type],
+      performedById: user.id,
+      beforeSnapshot: { status: txn.status },
+      afterSnapshot: { status: updated.status },
+    });
+  });
+
+  revalidatePath("/transactions");
+  revalidatePath("/client-ledger");
+  revalidatePath("/refunds-chargebacks-voids");
+  revalidatePath("/");
   return { ok: true };
 }

@@ -27,6 +27,7 @@ export async function AccountantDashboard({ accountingMonth }: { accountingMonth
     monthClose,
     epLedgerAgg,
     recentReconciliations,
+    outstandingRcvAgg,
   ] = await Promise.all([
     prisma.transaction.count({ where: { status: { in: ["SUBMITTED", "DETAILS_REQUESTED"] } } }),
     prisma.transaction.aggregate({
@@ -47,6 +48,11 @@ export async function AccountantDashboard({ accountingMonth }: { accountingMonth
       orderBy: { createdAt: "desc" },
       take: 5,
       include: { bankAccount: { select: { name: true } } },
+    }),
+    prisma.refundChargebackVoid.aggregate({
+      where: { status: "OPEN" },
+      _sum: { amount: true },
+      _count: true,
     }),
   ]);
 
@@ -74,6 +80,11 @@ export async function AccountantDashboard({ accountingMonth }: { accountingMonth
           label={`Month Close Progress (${accountingMonth})`}
           value={`${stepsDone} / 3`}
           href="/distributions"
+        />
+        <StatCard
+          label="Chargebacks/Refunds Outstanding"
+          value={`${new Decimal(outstandingRcvAgg._sum.amount ?? 0).toFixed(2)} (${outstandingRcvAgg._count})`}
+          href="/refunds-chargebacks-voids"
         />
       </div>
 
