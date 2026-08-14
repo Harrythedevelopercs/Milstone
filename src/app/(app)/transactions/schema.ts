@@ -1,0 +1,33 @@
+import { z } from "zod";
+
+const decimalString = (message: string) =>
+  z
+    .string()
+    .trim()
+    .min(1, message)
+    .refine((v) => !Number.isNaN(Number(v)), { message: "Must be a number" });
+
+const optionalDecimalString = z
+  .string()
+  .trim()
+  .refine((v) => v === "" || !Number.isNaN(Number(v)), { message: "Must be a number" })
+  .optional()
+  .or(z.literal(""));
+
+export const transactionSchema = z.object({
+  transactionDate: z.string().trim().min(1, "Required"),
+  clientId: z.string().trim().min(1, "Required"),
+  clientReference: z.string().trim().optional().or(z.literal("")),
+  merchantId: z.string().trim().min(1, "Required"),
+  expectedBankId: z.string().trim().min(1, "Required"),
+  paymentMethodId: z.string().trim().min(1, "Required"),
+  grossAmount: decimalString("Required"),
+  feeBearer: z.enum(["FOUNDAPAY", "CLIENT"]),
+  merchantFeeManual: optionalDecimalString,
+  merchantReservePercent: decimalString("Required"),
+  fpReservePercent: decimalString("Required"),
+  documentUrl: z.string().trim().optional().or(z.literal("")),
+  notes: z.string().trim().optional().or(z.literal("")),
+});
+
+export type TransactionFormValues = z.infer<typeof transactionSchema>;
