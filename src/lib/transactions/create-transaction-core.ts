@@ -27,6 +27,8 @@ export type CoreTransactionInput = {
   fpReservePercent: string;
   documentUrl: string | null;
   notes: string | null;
+  customerEmail?: string | null;
+  cardLast4?: string | null;
   createdById: string;
   // SUBMITTED = awaiting accountant review (employee entry).
   // APPROVED = auto-approved (accountant/owner entering their own).
@@ -127,6 +129,8 @@ export async function createTransactionCore(
         status: input.status,
         documentUrl: input.documentUrl,
         notes: input.notes,
+        customerEmail: input.customerEmail || null,
+        cardLast4: input.cardLast4 || null,
         createdById: input.createdById,
         approvedById: isAutoApproved ? input.createdById : null,
         approvedAt: isAutoApproved ? new Date() : null,

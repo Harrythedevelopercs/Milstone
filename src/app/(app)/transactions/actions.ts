@@ -35,6 +35,8 @@ export async function createTransaction(input: unknown): Promise<CreateTransacti
     fpReservePercent: d.fpReservePercent,
     documentUrl: d.documentUrl || null,
     notes: d.notes || null,
+    customerEmail: d.customerEmail || null,
+    cardLast4: d.cardLast4 || null,
     createdById: user.id,
     status: "APPROVED",
   });

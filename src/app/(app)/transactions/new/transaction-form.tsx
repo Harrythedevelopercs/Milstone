@@ -73,6 +73,8 @@ export function TransactionForm({
       fpReservePercent: "0",
       documentUrl: "",
       notes: "",
+      customerEmail: "",
+      cardLast4: "",
     },
   });
 
@@ -332,6 +334,35 @@ export function TransactionForm({
                     <FormLabel>FoundaPay reserve %</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" min="0" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="customerEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Customer email</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="email" placeholder="Optional" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="cardLast4"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Card last 4 digits</FormLabel>
+                    <FormControl>
+                      <Input {...field} maxLength={4} placeholder="Optional" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

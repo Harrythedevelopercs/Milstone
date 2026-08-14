@@ -28,6 +28,20 @@ export const transactionSchema = z.object({
   fpReservePercent: decimalString("Required"),
   documentUrl: z.string().trim().optional().or(z.literal("")),
   notes: z.string().trim().optional().or(z.literal("")),
+  customerEmail: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || z.string().email().safeParse(v).success, {
+      message: "Must be a valid email",
+    })
+    .optional()
+    .or(z.literal("")),
+  cardLast4: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || /^\d{4}$/.test(v), { message: "Must be 4 digits" })
+    .optional()
+    .or(z.literal("")),
 });
 
 export type TransactionFormValues = z.infer<typeof transactionSchema>;
