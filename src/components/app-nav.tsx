@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { NavDropdown } from "@/components/nav-dropdown";
@@ -59,8 +60,9 @@ export function AppNav({
 
   return (
     <div className="flex items-center gap-6">
-      <Link href="/" className="flex items-center gap-2 text-base font-semibold tracking-tight">
-        FoundaPay ERP
+      <Link href="/" className="flex items-center gap-2">
+        <Image src="/foundapay-logo.png" alt="FoundaPay" width={124} height={25} priority unoptimized />
+        <span className="text-sm font-medium text-muted-foreground">ERP</span>
       </Link>
       {canSeeMasterData && (
         <nav className="flex items-center gap-5">

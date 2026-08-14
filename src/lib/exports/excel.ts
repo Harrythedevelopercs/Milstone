@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { BRAND_NAME } from "./brand";
+import { getLogoAsset } from "./logo-asset";
 import type { ExportPayload } from "./types";
 
 function safeSheetName(title: string) {
@@ -14,9 +15,21 @@ export async function renderExcel(payload: ExportPayload): Promise<Buffer> {
   const sheet = wb.addWorksheet(safeSheetName(payload.title));
   let row = 1;
 
-  sheet.getCell(row, 1).value = BRAND_NAME;
-  sheet.getCell(row, 1).font = { bold: true, size: 14 };
-  row++;
+  const logo = getLogoAsset();
+  if (logo) {
+    const width = 150;
+    const height = (width * logo.height) / logo.width;
+    const imageId = wb.addImage({
+      base64: logo.dataUri.slice(logo.dataUri.indexOf(",") + 1),
+      extension: logo.dataUri.includes("image/jpeg") ? "jpeg" : "png",
+    });
+    sheet.addImage(imageId, { tl: { col: 0, row: 0 }, ext: { width, height } });
+    row = Math.max(2, Math.ceil(height / 18)) + 1;
+  } else {
+    sheet.getCell(row, 1).value = BRAND_NAME;
+    sheet.getCell(row, 1).font = { bold: true, size: 14 };
+    row++;
+  }
 
   sheet.getCell(row, 1).value = payload.title;
   sheet.getCell(row, 1).font = { bold: true, size: 12 };

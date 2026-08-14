@@ -1,5 +1,6 @@
 import { Document, Page, Text, View, StyleSheet, Image, renderToBuffer } from "@react-pdf/renderer";
-import { BRAND_NAME, BRAND_LOGO_PATH } from "./brand";
+import { BRAND_NAME } from "./brand";
+import { getLogoAsset } from "./logo-asset";
 import type { ExportColumn, ExportPayload } from "./types";
 
 const styles = StyleSheet.create({
@@ -13,7 +14,7 @@ const styles = StyleSheet.create({
     borderBottom: "1 solid #ddd",
   },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  logo: { width: 20, height: 20 },
+  logo: { height: 18 },
   brand: { fontSize: 13, fontWeight: 700 },
   generatedOn: { fontSize: 7, color: "#999" },
   title: { fontSize: 15, fontWeight: 700, marginBottom: 2 },
@@ -71,15 +72,20 @@ function formatCell(value: string | number | null | undefined, type: ExportColum
 function ReportDocument({ payload, generatedOn }: { payload: ExportPayload; generatedOn: string }) {
   const { columns, rows } = payload.table;
   const orientation = columns.length > 6 ? "landscape" : "portrait";
+  const logo = getLogoAsset();
+  const logoWidth = logo ? (18 * logo.width) / logo.height : 0;
 
   return (
     <Document title={payload.title} author={BRAND_NAME}>
       <Page size="A4" orientation={orientation} style={styles.page}>
         <View style={styles.header} fixed>
           <View style={styles.brandRow}>
-            {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image is not an HTML img and has no alt prop */}
-            {BRAND_LOGO_PATH && <Image src={BRAND_LOGO_PATH} style={styles.logo} />}
-            <Text style={styles.brand}>{BRAND_NAME}</Text>
+            {logo ? (
+              // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image is not an HTML img and has no alt prop
+              <Image src={logo.dataUri} style={[styles.logo, { width: logoWidth }]} />
+            ) : (
+              <Text style={styles.brand}>{BRAND_NAME}</Text>
+            )}
           </View>
           <Text style={styles.generatedOn}>Generated {generatedOn}</Text>
         </View>

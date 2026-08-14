@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useActionState } from "react";
 import { loginAction } from "./actions";
 import { Button } from "@/components/ui/button";
@@ -19,8 +20,9 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>FoundaPay ERP</CardTitle>
+        <CardHeader className="justify-items-center text-center">
+          <Image src="/foundapay-logo.png" alt="FoundaPay" width={160} height={32} priority unoptimized />
+          <CardTitle className="sr-only">FoundaPay ERP</CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>
