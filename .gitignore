@@ -43,3 +43,6 @@ node_modules
 
 # prisma generated client
 /src/generated/prisma
+
+# claude code session state
+/.claude

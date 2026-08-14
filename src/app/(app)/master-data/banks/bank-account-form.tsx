@@ -29,13 +29,23 @@ const ACCOUNT_TYPES = [
   { value: "CASH", label: "Cash" },
 ];
 
+const COMPANY_BANK_STATUSES = [
+  { value: "ACTIVE", label: "Active" },
+  { value: "SUSPENDED", label: "Suspended" },
+  { value: "NOT_APPLIED", label: "Not Applied" },
+];
+
+export type CompanyOption = { id: string; name: string };
+
 export function BankAccountForm({
   defaultValues,
   editingId,
+  companies,
   onSuccess,
 }: {
   defaultValues: BankAccountFormValues;
   editingId: string | null;
+  companies: CompanyOption[];
   onSuccess: () => void;
 }) {
   const { run, isPending } = useCrudAction();
@@ -103,6 +113,66 @@ export function BankAccountForm({
               <FormControl>
                 <Input {...field} />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="companyId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Company</FormLabel>
+              <Select
+                value={field.value || "none"}
+                onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
+                items={[
+                  { value: "none", label: "None" },
+                  ...companies.map((c) => ({ value: c.id, label: c.name })),
+                ]}
+              >
+                <FormControl>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {companies.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="status"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Status (for this company)</FormLabel>
+              <Select
+                value={field.value}
+                onValueChange={field.onChange}
+                items={COMPANY_BANK_STATUSES}
+              >
+                <FormControl>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {COMPANY_BANK_STATUSES.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}

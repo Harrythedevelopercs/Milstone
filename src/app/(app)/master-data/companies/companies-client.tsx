@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/master-data/data-table";
 import { CrudSheet } from "@/components/master-data/crud-sheet";
 import { StatusBadge } from "@/components/master-data/status-badge";
+import { BankStatusBadge } from "@/components/master-data/bank-status-badge";
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { setCompanyStatus } from "./actions";
 import { CompanyForm, type EmployeePartnerOption } from "./company-form";
@@ -17,6 +18,12 @@ export type CompanyRow = {
   employeePartnerId: string | null;
   status: "ACTIVE" | "INACTIVE";
   employeePartner: { name: string } | null;
+  bankAccounts: {
+    id: string;
+    bankName: string | null;
+    name: string;
+    status: "ACTIVE" | "SUSPENDED" | "NOT_APPLIED";
+  }[];
 };
 
 export function CompaniesClient({
@@ -71,6 +78,23 @@ export function CompaniesClient({
             key: "employeePartner",
             header: "Employee Partner",
             render: (r) => r.employeePartner?.name ?? "—",
+          },
+          {
+            key: "banks",
+            header: "Banks",
+            render: (r) =>
+              r.bankAccounts.length === 0 ? (
+                <span className="text-muted-foreground">—</span>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {r.bankAccounts.map((b) => (
+                    <span key={b.id} className="flex items-center gap-1 text-xs">
+                      <span className="text-muted-foreground">{b.bankName ?? b.name}</span>
+                      <BankStatusBadge status={b.status} />
+                    </span>
+                  ))}
+                </div>
+              ),
           },
           {
             key: "status",

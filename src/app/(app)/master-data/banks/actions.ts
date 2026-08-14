@@ -16,6 +16,8 @@ function toData(parsed: ReturnType<typeof bankAccountSchema.safeParse>) {
     currency: parsed.data.currency,
     country: parsed.data.country || null,
     openingBalance: parsed.data.openingBalance || "0",
+    companyId: parsed.data.companyId || null,
+    status: parsed.data.status,
   };
 }
 

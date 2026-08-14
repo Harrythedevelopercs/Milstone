@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { DataTable } from "@/components/master-data/data-table";
 import { CrudSheet } from "@/components/master-data/crud-sheet";
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { setBankAccountActive } from "./actions";
-import { BankAccountForm } from "./bank-account-form";
+import { BankAccountForm, type CompanyOption } from "./bank-account-form";
+import { CompanyBankGroups } from "./company-bank-groups";
 import type { BankAccountFormValues } from "./schema";
 
 export type BankAccountRow = {
@@ -20,9 +19,12 @@ export type BankAccountRow = {
   country: string | null;
   openingBalance: string;
   active: boolean;
+  companyId: string | null;
+  status: "ACTIVE" | "SUSPENDED" | "NOT_APPLIED";
+  company: { id: string; name: string } | null;
 };
 
-export function BanksClient({ rows }: { rows: BankAccountRow[] }) {
+export function BanksClient({ rows, companies }: { rows: BankAccountRow[]; companies: CompanyOption[] }) {
   const [editing, setEditing] = useState<BankAccountRow | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const { run } = useCrudAction();
@@ -52,6 +54,8 @@ export function BanksClient({ rows }: { rows: BankAccountRow[] }) {
         currency: editing.currency,
         country: editing.country ?? "",
         openingBalance: editing.openingBalance,
+        companyId: editing.companyId ?? "",
+        status: editing.status,
       }
     : {
         name: "",
@@ -61,6 +65,8 @@ export function BanksClient({ rows }: { rows: BankAccountRow[] }) {
         currency: "USD",
         country: "",
         openingBalance: "0",
+        companyId: "",
+        status: "ACTIVE",
       };
 
   return (
@@ -70,37 +76,7 @@ export function BanksClient({ rows }: { rows: BankAccountRow[] }) {
         <Button onClick={openCreate}>Add Account</Button>
       </div>
 
-      <DataTable
-        rows={rows}
-        rowKey={(r) => r.id}
-        emptyMessage="No bank accounts yet."
-        columns={[
-          { key: "name", header: "Name", render: (r) => r.name },
-          { key: "type", header: "Type", render: (r) => <Badge variant="outline">{r.accountType}</Badge> },
-          { key: "currency", header: "Currency", render: (r) => r.currency },
-          { key: "opening", header: "Opening Balance", render: (r) => r.openingBalance },
-          {
-            key: "status",
-            header: "Status",
-            render: (r) => <Badge variant={r.active ? "default" : "secondary"}>{r.active ? "Active" : "Inactive"}</Badge>,
-          },
-          {
-            key: "actions",
-            header: "",
-            className: "text-right",
-            render: (r) => (
-              <div className="flex justify-end gap-2">
-                <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>
-                  Edit
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => toggleActive(r)}>
-                  {r.active ? "Deactivate" : "Activate"}
-                </Button>
-              </div>
-            ),
-          },
-        ]}
-      />
+      <CompanyBankGroups rows={rows} onEdit={openEdit} onToggleActive={toggleActive} />
 
       <CrudSheet
         open={sheetOpen}
@@ -111,6 +87,7 @@ export function BanksClient({ rows }: { rows: BankAccountRow[] }) {
           key={editing?.id ?? "new"}
           defaultValues={defaultValues}
           editingId={editing?.id ?? null}
+          companies={companies}
           onSuccess={() => setSheetOpen(false)}
         />
       </CrudSheet>

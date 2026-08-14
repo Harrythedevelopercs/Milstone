@@ -11,6 +11,8 @@ export const bankAccountSchema = z.object({
     .string()
     .trim()
     .refine((v) => v === "" || !Number.isNaN(Number(v)), { message: "Must be a number" }),
+  companyId: z.string().trim().optional().or(z.literal("")),
+  status: z.enum(["ACTIVE", "SUSPENDED", "NOT_APPLIED"]),
 });
 
 export type BankAccountFormValues = z.infer<typeof bankAccountSchema>;

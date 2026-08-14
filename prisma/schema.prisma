@@ -77,6 +77,16 @@ enum AccountType {
   CASH
 }
 
+// Per-company relationship status (from the user's tracking sheet), separate
+// from the `active` flag below -- active controls whether an account is
+// selectable elsewhere in the app (forms/dropdowns); this only describes
+// whether the company currently has/had a real relationship with that bank.
+enum BankAccountStatus {
+  ACTIVE
+  SUSPENDED
+  NOT_APPLIED
+}
+
 enum RcvType {
   REFUND
   CHARGEBACK
@@ -239,6 +249,7 @@ model Company {
   merchants       Merchant[]
   transactions    Transaction[]
   expenses        Expense[]
+  bankAccounts    BankAccount[]
 
   @@map("companies")
 }
@@ -329,19 +340,22 @@ model MerchantFeeRule {
 }
 
 model BankAccount {
-  id                  String      @id @default(cuid())
+  id                  String            @id @default(cuid())
   name                String
-  accountType         AccountType @map("account_type")
-  bankName            String?     @map("bank_name")
-  accountNumberMasked String?     @map("account_number_masked")
-  currency            String      @default("USD")
+  accountType         AccountType       @map("account_type")
+  bankName            String?           @map("bank_name")
+  accountNumberMasked String?           @map("account_number_masked")
+  currency            String            @default("USD")
   country             String?
-  openingBalance      Decimal     @default(0) @map("opening_balance") @db.Decimal(18, 2)
-  openingBalanceDate  DateTime?   @map("opening_balance_date")
-  active              Boolean     @default(true)
-  createdAt           DateTime    @default(now()) @map("created_at")
-  updatedAt           DateTime    @updatedAt @map("updated_at")
+  openingBalance      Decimal           @default(0) @map("opening_balance") @db.Decimal(18, 2)
+  openingBalanceDate  DateTime?         @map("opening_balance_date")
+  active              Boolean           @default(true)
+  companyId           String?           @map("company_id")
+  status              BankAccountStatus @default(ACTIVE)
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
 
+  company               Company?               @relation(fields: [companyId], references: [id])
   merchants             Merchant[]
   transactions          Transaction[]          @relation("TxnExpectedBank")
   settlementBatches     SettlementBatch[]
