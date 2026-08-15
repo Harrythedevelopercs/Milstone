@@ -2,16 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { SettlementForm } from "./settlement-form";
 
 export default async function NewSettlementBatchPage() {
-  const [merchants, bankAccounts, unsettled] = await Promise.all([
+  const [merchants, unsettled] = await Promise.all([
     prisma.merchant.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.bankAccount.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, settlementBankId: true },
     }),
     prisma.transaction.findMany({
       where: { status: "APPROVED", settlementBatchId: null },
@@ -39,11 +34,7 @@ export default async function NewSettlementBatchPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <SettlementForm
-        merchants={merchants}
-        bankAccounts={bankAccounts}
-        unsettledTransactions={unsettledTransactions}
-      />
+      <SettlementForm merchants={merchants} unsettledTransactions={unsettledTransactions} />
     </div>
   );
 }

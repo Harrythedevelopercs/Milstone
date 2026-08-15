@@ -267,34 +267,38 @@ export function TransactionForm({
               )}
             </div>
 
-            <FormField
-              control={form.control}
-              name="expectedBankId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{isDirect ? "Bank account (where the money landed)" : "Expected settlement bank"}</FormLabel>
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    items={bankAccounts.map((b) => ({ value: b.id, label: b.name }))}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a bank account" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {bankAccounts.map((b) => (
-                        <SelectItem key={b.id} value={b.id}>
-                          {b.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Merchant-based: bank is always the merchant's configured
+                settlement bank, silently -- nothing to pick or see here. */}
+            {isDirect && (
+              <FormField
+                control={form.control}
+                name="expectedBankId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bank account (where the money landed)</FormLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      items={bankAccounts.map((b) => ({ value: b.id, label: b.name }))}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a bank account" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {bankAccounts.map((b) => (
+                          <SelectItem key={b.id} value={b.id}>
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             {!isDirect && (
               <div className="grid grid-cols-2 gap-4">

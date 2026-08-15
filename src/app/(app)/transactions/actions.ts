@@ -88,7 +88,7 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
     if (newMonthError) return { ok: false, error: newMonthError };
   }
 
-  const [client, paymentMethod, merchant, bankAccount] = await Promise.all([
+  const [client, paymentMethod, merchant] = await Promise.all([
     prisma.client.findUnique({ where: { id: d.clientId } }),
     prisma.paymentMethod.findUnique({ where: { id: d.paymentMethodId } }),
     d.merchantId
@@ -97,7 +97,6 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
           include: { company: { select: { employeePartnerId: true } } },
         })
       : null,
-    prisma.bankAccount.findUnique({ where: { id: d.expectedBankId } }),
   ]);
   if (!client || client.status !== "ACTIVE") return { ok: false, error: "Client not found or inactive." };
   if (!paymentMethod || paymentMethod.status !== "ACTIVE") {
@@ -114,11 +113,22 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
   if (!isDirect && (!merchant || !merchant.active)) {
     return { ok: false, error: "Merchant not found or inactive." };
   }
-  if (!bankAccount || !bankAccount.active) return { ok: false, error: "Bank account not found or inactive." };
   // A batched transaction is tied to a merchant deposit reconciliation --
   // can't detach it into a direct-to-bank payment via edit.
   if (isDirect && existing.settlementBatchId) {
     return { ok: false, error: "Cannot switch to a direct-to-bank method: this transaction is part of a settlement batch." };
+  }
+  // Silent, server-enforced: a merchant transaction always settles into that
+  // merchant's configured bank, never a client-submitted one.
+  const effectiveBankId = isDirect ? d.expectedBankId : merchant!.settlementBankId;
+  const bankAccount = await prisma.bankAccount.findUnique({ where: { id: effectiveBankId } });
+  if (!bankAccount || !bankAccount.active) {
+    return {
+      ok: false,
+      error: isDirect
+        ? "Bank account not found or inactive."
+        : `${merchant!.name}'s configured settlement bank is not found or inactive.`,
+    };
   }
 
   const rate = await lookupClientRate(d.clientId, d.paymentMethodId, transactionDate);
@@ -179,7 +189,7 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
         clientReference: d.clientReference || null,
         companyId: isDirect ? bankAccount.companyId : merchant!.companyId,
         merchantId: d.merchantId || null,
-        expectedBankId: d.expectedBankId,
+        expectedBankId: effectiveBankId,
         employeePartnerId: isDirect ? null : merchant!.company.employeePartnerId,
         businessUnitId: isDirect ? null : merchant!.businessUnitId,
         paymentMethodId: d.paymentMethodId,
@@ -210,44 +220,53 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
       },
     });
 
-    // Bank Ledger correction for direct-to-bank transactions: only relevant
-    // once the transaction has actually settled (a real BankLedger entry
-    // exists for it). Never rewrite that row -- reverse it and post a fresh
-    // one, same append-only pattern as the Client Ledger correction below.
+    // Bank Ledger correction for a transaction that's settled outside a
+    // batch -- either a direct-to-bank receipt, or a merchant transaction
+    // manually marked Settled. Only relevant once a real per-transaction
+    // BankLedger entry actually exists. Never rewrite that row -- reverse it
+    // and post a fresh one, same append-only pattern as Client Ledger below.
+    // Skipped entirely if this transaction was already refunded/charged
+    // back/voided (its bank effect, if any, was already reversed there).
     const bankLedgerEntry = await tx.bankLedger.findFirst({
       where: { sourceType: "TRANSACTION", sourceId: id },
     });
-    if (bankLedgerEntry && wasDirect && isDirect) {
-      const oldGross = new Decimal(existing.grossAmount);
-      const newGross = new Decimal(gross);
-      if (!oldGross.equals(newGross) || existing.expectedBankId !== d.expectedBankId) {
+    const alreadyReversedElsewhere = (["VOID", "REFUNDED", "CHARGEBACK"] as string[]).includes(existing.status);
+    const oldSettleAmount = wasDirect
+      ? new Decimal(existing.grossAmount)
+      : new Decimal(existing.expectedSettlement ?? 0);
+    const newSettleAmount = isDirect ? new Decimal(gross) : new Decimal(expectedSettlement);
+    const stillSettledSameKind =
+      (wasDirect && isDirect) || (!wasDirect && !isDirect && existing.status === "SETTLED");
+
+    if (bankLedgerEntry && !alreadyReversedElsewhere && stillSettledSameKind) {
+      if (!oldSettleAmount.equals(newSettleAmount) || existing.expectedBankId !== effectiveBankId) {
         await postBankLedgerEntry(tx, {
           bankAccountId: existing.expectedBankId,
-          amount: oldGross.negated().toFixed(2),
+          amount: oldSettleAmount.negated().toFixed(2),
           entryDate: existing.transactionDate,
           accountingMonth: existing.accountingMonth,
           sourceType: "TRANSACTION",
           sourceId: id,
-          description: `Correction: edit to ${id} (reversing prior direct deposit)`,
+          description: `Correction: edit to ${id} (reversing prior settlement)`,
           createdById: user.id,
         });
         await postBankLedgerEntry(tx, {
-          bankAccountId: d.expectedBankId,
-          amount: newGross.toFixed(2),
+          bankAccountId: effectiveBankId,
+          amount: newSettleAmount.toFixed(2),
           entryDate: transactionDate,
           accountingMonth,
           sourceType: "TRANSACTION",
           sourceId: id,
-          description: `Correction: edit to ${id} (new direct deposit)`,
+          description: `Correction: edit to ${id} (new settlement)`,
           createdById: user.id,
         });
       }
-    } else if (bankLedgerEntry && wasDirect && !isDirect) {
+    } else if (bankLedgerEntry && !alreadyReversedElsewhere && wasDirect && !isDirect) {
       // No longer a direct receipt -- the cash was never really "already in
       // the bank" the way this transaction now claims, so reverse it.
       await postBankLedgerEntry(tx, {
         bankAccountId: existing.expectedBankId,
-        amount: new Decimal(existing.grossAmount).negated().toFixed(2),
+        amount: oldSettleAmount.negated().toFixed(2),
         entryDate: existing.transactionDate,
         accountingMonth: existing.accountingMonth,
         sourceType: "TRANSACTION",
@@ -259,7 +278,7 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
       // Newly direct and was just promoted straight to Settled -- post the
       // deposit for the first time, same as createTransactionCore.
       await postBankLedgerEntry(tx, {
-        bankAccountId: d.expectedBankId,
+        bankAccountId: effectiveBankId,
         amount: money(gross),
         entryDate: transactionDate,
         accountingMonth,
@@ -465,7 +484,10 @@ export async function markTransactionSettled(
   const user = await requireRole("OWNER", "ACCOUNTANT");
   const date = new Date(settlementDate);
   if (Number.isNaN(date.getTime())) return { ok: false, error: "Invalid settlement date." };
-  const txn = await prisma.transaction.findUnique({ where: { id } });
+  const txn = await prisma.transaction.findUnique({
+    where: { id },
+    include: { merchant: { select: { name: true } } },
+  });
   if (!txn) return { ok: false, error: "Transaction not found." };
   if (txn.status !== "APPROVED") {
     return { ok: false, error: `Cannot mark settled a transaction with status ${txn.status}.` };
@@ -487,9 +509,25 @@ export async function markTransactionSettled(
       beforeSnapshot: { status: txn.status },
       afterSnapshot: { status: updated.status, settlementDate: updated.settlementDate },
     });
+    // The merchant's own net proceeds land in the bank the moment we
+    // consider this settled -- same figure the settlement-batch flow uses
+    // (expectedSettlement = gross - merchantFee - merchantReserve). FP's fee
+    // was never part of this number, so it's untouched by this posting.
+    await postBankLedgerEntry(tx, {
+      bankAccountId: txn.expectedBankId,
+      amount: txn.expectedSettlement,
+      entryDate: date,
+      accountingMonth: txn.accountingMonth,
+      sourceType: "TRANSACTION",
+      sourceId: id,
+      description: `Settled ${txn.merchant?.name ?? txn.id}`,
+      createdById: user.id,
+    });
   });
 
   revalidatePath("/transactions");
+  revalidatePath("/master-data/banks");
+  revalidatePath("/cash-position");
   return { ok: true };
 }
 
@@ -516,7 +554,10 @@ export async function markAllSettled(input: {
     where.transactionDate = { gte: dayStart, lt: dayEnd };
   }
 
-  const transactions = await prisma.transaction.findMany({ where });
+  const transactions = await prisma.transaction.findMany({
+    where,
+    include: { merchant: { select: { name: true } } },
+  });
   if (transactions.length === 0) {
     return { ok: false, error: "No approved transactions match that filter." };
   }
@@ -543,10 +584,22 @@ export async function markAllSettled(input: {
         afterSnapshot: { status: updated.status, settlementDate: updated.settlementDate },
         notes: "Bulk mark all settled",
       });
+      await postBankLedgerEntry(tx, {
+        bankAccountId: txn.expectedBankId,
+        amount: txn.expectedSettlement,
+        entryDate: date,
+        accountingMonth: txn.accountingMonth,
+        sourceType: "TRANSACTION",
+        sourceId: txn.id,
+        description: `Settled ${txn.merchant?.name ?? txn.id}`,
+        createdById: user.id,
+      });
     }
   });
 
   revalidatePath("/transactions");
+  revalidatePath("/master-data/banks");
+  revalidatePath("/cash-position");
   return { ok: true, count: transactions.length };
 }
 
@@ -619,7 +672,10 @@ export async function createRcv(input: unknown): Promise<ReviewResult> {
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const d = parsed.data;
 
-  const txn = await prisma.transaction.findUnique({ where: { id: d.transactionId } });
+  const txn = await prisma.transaction.findUnique({
+    where: { id: d.transactionId },
+    include: { settlementBatch: { select: { bankAccountId: true } } },
+  });
   if (!txn) return { ok: false, error: "Transaction not found." };
   if ((RCV_INELIGIBLE_STATUSES as readonly string[]).includes(txn.status)) {
     return { ok: false, error: `Cannot ${d.type.toLowerCase()} a transaction with status ${txn.status}.` };
@@ -627,6 +683,18 @@ export async function createRcv(input: unknown): Promise<ReviewResult> {
   if (txn.clientNetPayable === null) {
     return { ok: false, error: "Transaction has no computed client payable amount." };
   }
+  // Did this transaction's money ever actually land in a bank? Either it
+  // went through a settlement batch, or it was manually marked Settled (or,
+  // for a direct-to-bank payment, settled automatically on approval) --
+  // both set settlementDate. If neither happened, there's nothing to
+  // reverse on the bank side; the client-ledger clawback below still applies
+  // regardless (the client can owe money back even if it was never banked).
+  const wasSettledToBank = txn.settlementBatchId !== null || txn.settlementDate !== null;
+  const settleBankId = txn.settlementBatch?.bankAccountId ?? txn.expectedBankId;
+  const isDirectTxn = txn.merchantId === null;
+  const settleAmount = isDirectTxn
+    ? new Decimal(txn.grossAmount)
+    : new Decimal(txn.expectedSettlement ?? 0);
 
   const eventDate = new Date(d.eventDate);
   if (Number.isNaN(eventDate.getTime())) return { ok: false, error: "Invalid event date." };
@@ -672,6 +740,25 @@ export async function createRcv(input: unknown): Promise<ReviewResult> {
       data: { status: newStatus },
     });
 
+    // Mirror-image of the settle-in credit: whatever landed in the bank for
+    // this transaction comes back out of the same bank, for the same
+    // amount. That amount never included FP's fee (expectedSettlement is
+    // gross - merchantFee - merchantReserve, computed before fpFee even
+    // enters the picture), so FP's revenue and the 10% EP commission --
+    // both driven off fpFee elsewhere -- are structurally untouched by this.
+    if (wasSettledToBank) {
+      await postBankLedgerEntry(tx, {
+        bankAccountId: settleBankId,
+        amount: settleAmount.negated().toFixed(2),
+        entryDate: eventDate,
+        accountingMonth,
+        sourceType: "RCV",
+        sourceId: rcv.id,
+        description: `${typeLabel} reversal of ${txn.id}`,
+        createdById: user.id,
+      });
+    }
+
     await writeAuditLog(tx, {
       entityType: "RefundChargebackVoid",
       entityId: rcv.id,
@@ -695,6 +782,8 @@ export async function createRcv(input: unknown): Promise<ReviewResult> {
   revalidatePath("/transactions");
   revalidatePath("/client-ledger");
   revalidatePath("/refunds-chargebacks-voids");
+  revalidatePath("/master-data/banks");
+  revalidatePath("/cash-position");
   revalidatePath("/");
   return { ok: true };
 }

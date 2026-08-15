@@ -86,6 +86,7 @@ export function CompanyBankGroups({
                       <th className="px-4 py-2 text-left font-medium">Name</th>
                       <th className="px-4 py-2 text-left font-medium">Bank</th>
                       <th className="px-4 py-2 text-left font-medium">Currency</th>
+                      <th className="px-4 py-2 text-right font-medium">Current Balance</th>
                       <th className="px-4 py-2 text-left font-medium">Company Status</th>
                       <th className="px-4 py-2 text-left font-medium">Active</th>
                       <th className="px-4 py-2 text-right font-medium"></th>
@@ -97,6 +98,13 @@ export function CompanyBankGroups({
                         <td className="px-4 py-2">{r.name}</td>
                         <td className="px-4 py-2 text-muted-foreground">{r.bankName ?? "—"}</td>
                         <td className="px-4 py-2">{r.currency}</td>
+                        <td
+                          className={`px-4 py-2 text-right font-medium ${
+                            Number(r.currentBalance) < 0 ? "text-destructive" : ""
+                          }`}
+                        >
+                          {r.currentBalance}
+                        </td>
                         <td className="px-4 py-2">
                           <BankStatusBadge status={r.status} />
                         </td>

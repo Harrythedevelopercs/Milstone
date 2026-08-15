@@ -18,17 +18,22 @@ export async function createSettlementBatch(input: unknown): Promise<ActionResul
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const d = parsed.data;
 
-  const [merchant, bankAccount, transactions] = await Promise.all([
-    prisma.merchant.findUnique({ where: { id: d.merchantId } }),
-    prisma.bankAccount.findUnique({ where: { id: d.bankAccountId } }),
+  const merchant = await prisma.merchant.findUnique({ where: { id: d.merchantId } });
+  if (!merchant || !merchant.active) return { ok: false, error: "Merchant not found or inactive." };
+
+  // Silent, server-enforced: a batch always deposits into the merchant's
+  // configured settlement bank, never a client-submitted one.
+  const [bankAccount, transactions] = await Promise.all([
+    prisma.bankAccount.findUnique({ where: { id: merchant.settlementBankId } }),
     prisma.transaction.findMany({
       where: { id: { in: d.transactionIds } },
       select: { id: true, merchantId: true, status: true, settlementBatchId: true, expectedSettlement: true },
     }),
   ]);
 
-  if (!merchant || !merchant.active) return { ok: false, error: "Merchant not found or inactive." };
-  if (!bankAccount || !bankAccount.active) return { ok: false, error: "Bank account not found or inactive." };
+  if (!bankAccount || !bankAccount.active) {
+    return { ok: false, error: `${merchant.name}'s configured settlement bank is not found or inactive.` };
+  }
   if (transactions.length !== d.transactionIds.length) {
     return { ok: false, error: "One or more selected transactions could not be found." };
   }
@@ -58,7 +63,7 @@ export async function createSettlementBatch(input: unknown): Promise<ActionResul
     const batch = await tx.settlementBatch.create({
       data: {
         merchantId: d.merchantId,
-        bankAccountId: d.bankAccountId,
+        bankAccountId: merchant.settlementBankId,
         depositDate,
         accountingMonth,
         depositAmount: d.depositAmount,
@@ -76,7 +81,7 @@ export async function createSettlementBatch(input: unknown): Promise<ActionResul
     });
 
     await postBankLedgerEntry(tx, {
-      bankAccountId: d.bankAccountId,
+      bankAccountId: merchant.settlementBankId,
       amount: d.depositAmount,
       entryDate: depositDate,
       accountingMonth,
@@ -137,8 +142,15 @@ export async function updateSettlementBatch(id: string, input: unknown): Promise
     if (newMonthError) return { ok: false, error: newMonthError };
   }
 
-  const bankAccount = await prisma.bankAccount.findUnique({ where: { id: d.bankAccountId } });
-  if (!bankAccount || !bankAccount.active) return { ok: false, error: "Bank account not found or inactive." };
+  // Silent, server-enforced: merchant is locked on edit, and the batch
+  // always deposits into that merchant's configured settlement bank.
+  const merchant = await prisma.merchant.findUnique({ where: { id: existing.merchantId } });
+  if (!merchant || !merchant.active) return { ok: false, error: "Merchant not found or inactive." };
+  const effectiveBankId = merchant.settlementBankId;
+  const bankAccount = await prisma.bankAccount.findUnique({ where: { id: effectiveBankId } });
+  if (!bankAccount || !bankAccount.active) {
+    return { ok: false, error: `${merchant.name}'s configured settlement bank is not found or inactive.` };
+  }
 
   const result = await prisma.$transaction(async (tx) => {
     const { untouchedIds, touched } = await findUntouchedBatchTransactionIds(tx, id);
@@ -196,7 +208,7 @@ export async function updateSettlementBatch(id: string, input: unknown): Promise
     const updated = await tx.settlementBatch.update({
       where: { id },
       data: {
-        bankAccountId: d.bankAccountId,
+        bankAccountId: effectiveBankId,
         depositDate,
         accountingMonth,
         depositAmount: d.depositAmount,
@@ -212,7 +224,7 @@ export async function updateSettlementBatch(id: string, input: unknown): Promise
     // the amount, bank, or month actually changed.
     const ledgerRelevantChange =
       !new Decimal(existing.depositAmount).equals(d.depositAmount) ||
-      existing.bankAccountId !== d.bankAccountId ||
+      existing.bankAccountId !== effectiveBankId ||
       existing.accountingMonth !== accountingMonth;
     if (ledgerRelevantChange) {
       await postBankLedgerEntry(tx, {
@@ -226,7 +238,7 @@ export async function updateSettlementBatch(id: string, input: unknown): Promise
         createdById: user.id,
       });
       await postBankLedgerEntry(tx, {
-        bankAccountId: d.bankAccountId,
+        bankAccountId: effectiveBankId,
         amount: d.depositAmount,
         entryDate: depositDate,
         accountingMonth,

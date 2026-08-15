@@ -17,7 +17,7 @@ import { DeleteSettlementBatchAction } from "./delete-settlement-batch-action";
 import type { UnsettledTransaction } from "./new/settlement-form";
 
 export default async function SettlementsPage() {
-  const [batches, merchants, bankAccounts, unbatched, batchedTxns, closedMonths] = await Promise.all([
+  const [batches, merchants, unbatched, batchedTxns, closedMonths] = await Promise.all([
     prisma.settlementBatch.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -29,12 +29,7 @@ export default async function SettlementsPage() {
     prisma.merchant.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.bankAccount.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, settlementBankId: true },
     }),
     prisma.transaction.findMany({
       where: { status: "APPROVED", settlementBatchId: null },
@@ -149,7 +144,6 @@ export default async function SettlementsPage() {
                           }}
                           monthOpen={monthOpen}
                           merchants={merchants}
-                          bankAccounts={bankAccounts}
                           unsettledTransactions={unsettledForBatch}
                         />
                         <DeleteSettlementBatchAction id={b.id} monthOpen={monthOpen} />

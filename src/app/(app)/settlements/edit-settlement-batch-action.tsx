@@ -4,7 +4,7 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { CrudSheet } from "@/components/master-data/crud-sheet";
-import { SettlementForm, type Option, type UnsettledTransaction } from "./new/settlement-form";
+import { SettlementForm, type MerchantOption, type UnsettledTransaction } from "./new/settlement-form";
 import type { SettlementBatchFormValues } from "./schema";
 
 export type EditableSettlementBatch = {
@@ -21,13 +21,11 @@ export function EditSettlementBatchAction({
   row,
   monthOpen,
   merchants,
-  bankAccounts,
   unsettledTransactions,
 }: {
   row: EditableSettlementBatch;
   monthOpen: boolean;
-  merchants: Option[];
-  bankAccounts: Option[];
+  merchants: MerchantOption[];
   unsettledTransactions: UnsettledTransaction[];
 }) {
   const [open, setOpen] = useState(false);
@@ -66,7 +64,6 @@ export function EditSettlementBatchAction({
           editingId={row.id}
           defaultValues={defaultValues}
           merchants={merchants}
-          bankAccounts={bankAccounts}
           unsettledTransactions={unsettledTransactions}
           onSuccess={() => setOpen(false)}
           hideChrome

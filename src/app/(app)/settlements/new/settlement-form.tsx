@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,6 +32,7 @@ import { settlementBatchSchema, type SettlementBatchFormValues } from "../schema
 import { createSettlementBatch, updateSettlementBatch } from "../actions";
 
 export type Option = { id: string; name: string };
+export type MerchantOption = { id: string; name: string; settlementBankId: string };
 export type UnsettledTransaction = {
   id: string;
   merchantId: string;
@@ -45,15 +46,13 @@ export type UnsettledTransaction = {
 
 export function SettlementForm({
   merchants,
-  bankAccounts,
   unsettledTransactions,
   editingId,
   defaultValues: providedDefaultValues,
   onSuccess,
   hideChrome = false,
 }: {
-  merchants: Option[];
-  bankAccounts: Option[];
+  merchants: MerchantOption[];
   editingId?: string;
   defaultValues?: SettlementBatchFormValues;
   onSuccess?: () => void;
@@ -77,6 +76,14 @@ export function SettlementForm({
   const merchantId = form.watch("merchantId");
   const selectedIds = form.watch("transactionIds");
   const depositAmount = form.watch("depositAmount");
+
+  // Silent, like the transaction form: a batch always deposits into the
+  // merchant's configured settlement bank, never a manually-picked one.
+  useEffect(() => {
+    const merchant = merchants.find((m) => m.id === merchantId);
+    if (merchant) form.setValue("bankAccountId", merchant.settlementBankId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [merchantId]);
 
   const merchantTransactions = useMemo(
     () => unsettledTransactions.filter((t) => t.merchantId === merchantId),
@@ -129,68 +136,40 @@ export function SettlementForm({
   const formBody = (
     <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="merchantId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Merchant{editingId ? " (locked)" : ""}</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={(v) => {
-                        field.onChange(v);
-                        form.setValue("transactionIds", []);
-                      }}
-                      items={merchants.map((m) => ({ value: m.id, label: m.name }))}
-                      disabled={!!editingId}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select a merchant" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {merchants.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>
-                            {m.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="bankAccountId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Deposited into</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      items={bankAccounts.map((b) => ({ value: b.id, label: b.name }))}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select a bank account" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {bankAccounts.map((b) => (
-                          <SelectItem key={b.id} value={b.id}>
-                            {b.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            {/* Bank is always the merchant's configured settlement bank,
+                silently -- nothing to pick or see here. */}
+            <FormField
+              control={form.control}
+              name="merchantId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Merchant{editingId ? " (locked)" : ""}</FormLabel>
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) => {
+                      field.onChange(v);
+                      form.setValue("transactionIds", []);
+                    }}
+                    items={merchants.map((m) => ({ value: m.id, label: m.name }))}
+                    disabled={!!editingId}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select a merchant" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {merchants.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <FormField

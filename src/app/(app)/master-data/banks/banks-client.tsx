@@ -19,6 +19,7 @@ export type BankAccountRow = {
   currency: string;
   country: string | null;
   openingBalance: string;
+  currentBalance: string;
   active: boolean;
   companyId: string | null;
   status: "ACTIVE" | "SUSPENDED" | "NOT_APPLIED";

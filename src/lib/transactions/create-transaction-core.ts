@@ -22,6 +22,10 @@ export type CoreTransactionInput = {
   // false) -- expectedBankId is then the bank the money actually landed in,
   // chosen directly rather than derived from a merchant's settlement bank.
   merchantId: string | null;
+  // Only meaningful when merchantId is null (direct-to-bank). For a merchant
+  // transaction the bank is always silently re-derived server-side from
+  // merchant.settlementBankId, regardless of what's passed here -- never
+  // trust the client for which bank a merchant settles into.
   expectedBankId: string;
   paymentMethodId: string;
   grossAmount: string;
@@ -44,7 +48,7 @@ export type CoreTransactionResult = { ok: true; id: string } | { ok: false; erro
 export async function createTransactionCore(
   input: CoreTransactionInput
 ): Promise<CoreTransactionResult> {
-  const [client, paymentMethod, merchant, bankAccount] = await Promise.all([
+  const [client, paymentMethod, merchant] = await Promise.all([
     prisma.client.findUnique({ where: { id: input.clientId } }),
     prisma.paymentMethod.findUnique({ where: { id: input.paymentMethodId } }),
     input.merchantId
@@ -53,7 +57,6 @@ export async function createTransactionCore(
           include: { company: { select: { employeePartnerId: true } } },
         })
       : null,
-    prisma.bankAccount.findUnique({ where: { id: input.expectedBankId } }),
   ]);
   if (!client || client.status !== "ACTIVE") {
     return { ok: false, error: "Client not found or inactive." };
@@ -71,8 +74,18 @@ export async function createTransactionCore(
   if (!isDirect && (!merchant || !merchant.active)) {
     return { ok: false, error: "Merchant not found or inactive." };
   }
+
+  // Silent, server-enforced: a merchant transaction always settles into that
+  // merchant's configured bank, never a client-submitted one.
+  const effectiveBankId = isDirect ? input.expectedBankId : merchant!.settlementBankId;
+  const bankAccount = await prisma.bankAccount.findUnique({ where: { id: effectiveBankId } });
   if (!bankAccount || !bankAccount.active) {
-    return { ok: false, error: "Bank account not found or inactive." };
+    return {
+      ok: false,
+      error: isDirect
+        ? "Bank account not found or inactive."
+        : `${merchant!.name}'s configured settlement bank is not found or inactive.`,
+    };
   }
 
   const transactionDate = new Date(input.transactionDate);
@@ -147,7 +160,7 @@ export async function createTransactionCore(
         clientReference: input.clientReference,
         companyId: isDirect ? bankAccount.companyId : merchant!.companyId,
         merchantId: input.merchantId,
-        expectedBankId: input.expectedBankId,
+        expectedBankId: effectiveBankId,
         employeePartnerId: isDirect ? null : merchant!.company.employeePartnerId,
         businessUnitId: isDirect ? null : merchant!.businessUnitId,
         paymentMethodId: input.paymentMethodId,
@@ -200,7 +213,7 @@ export async function createTransactionCore(
 
       if (isDirect) {
         await postBankLedgerEntry(tx, {
-          bankAccountId: input.expectedBankId,
+          bankAccountId: effectiveBankId,
           amount: money(gross),
           entryDate: row.transactionDate,
           accountingMonth: row.accountingMonth,
