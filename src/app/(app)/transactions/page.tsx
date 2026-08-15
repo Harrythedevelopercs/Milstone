@@ -12,18 +12,33 @@ import {
 } from "@/components/ui/table";
 import { EmptyTableRow } from "@/components/ui/empty-table-row";
 import { TransactionStatusBadge } from "@/components/transactions/status-badge";
+import { DateRangeHeader } from "@/components/exports/date-range-header";
 import { ReviewActions } from "./review-actions";
 import { MarkSettledAction } from "./settlement-actions";
 import { BulkSettleToolbar } from "./bulk-settle-toolbar";
 import { RcvActions } from "./rcv-actions";
 import { EditTransactionAction } from "./edit-transaction-action";
 import { TransactionHistoryAction } from "./transaction-history-action";
+import { DeleteTransactionAction } from "./delete-transaction-action";
 
-export default async function TransactionsPage() {
+export default async function TransactionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from, to } = await searchParams;
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(to) : null;
+
   const [transactions, merchants, clients, bankAccounts, paymentMethods, closedMonths] = await Promise.all([
     prisma.transaction.findMany({
+      where: {
+        ...(fromDate || toDate
+          ? { transactionDate: { ...(fromDate ? { gte: fromDate } : {}), ...(toDate ? { lte: toDate } : {}) } }
+          : {}),
+      },
       orderBy: { createdAt: "desc" },
-      take: 200,
+      take: fromDate || toDate ? undefined : 200,
       include: {
         client: { select: { name: true } },
         merchant: { select: { name: true } },
@@ -70,6 +85,8 @@ export default async function TransactionsPage() {
           New Transaction
         </Link>
       </div>
+
+      <DateRangeHeader from={from} to={to} reportType="transactions" />
 
       <BulkSettleToolbar merchants={merchantOptions} />
 
@@ -159,6 +176,10 @@ export default async function TransactionsPage() {
                         paymentMethods={paymentMethods}
                       />
                       <TransactionHistoryAction id={t.id} />
+                      <DeleteTransactionAction
+                        id={t.id}
+                        monthOpen={!closedMonthSet.has(t.accountingMonth)}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>

@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { format } from "date-fns";
+import { AlertTriangle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { buttonVariants } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { ToneBadge } from "@/components/ui/tone-badge";
+import { statusTone, NEEDS_ATTENTION_ROW_CLASS } from "@/lib/status-tone";
 import {
   Table,
   TableBody,
@@ -14,11 +16,27 @@ import {
 import { EmptyTableRow } from "@/components/ui/empty-table-row";
 import { EditSettlementBatchAction } from "./edit-settlement-batch-action";
 import { DeleteSettlementBatchAction } from "./delete-settlement-batch-action";
+import { DateRangeHeader } from "@/components/exports/date-range-header";
 import type { UnsettledTransaction } from "./new/settlement-form";
 
-export default async function SettlementsPage() {
+export default async function SettlementsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string; attention?: string }>;
+}) {
+  const { from, to, attention } = await searchParams;
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(to) : null;
+  const needsAttentionOnly = attention === "1";
+
   const [batches, merchants, unbatched, batchedTxns, closedMonths] = await Promise.all([
     prisma.settlementBatch.findMany({
+      where: {
+        ...(fromDate || toDate
+          ? { depositDate: { ...(fromDate ? { gte: fromDate } : {}), ...(toDate ? { lte: toDate } : {}) } }
+          : {}),
+        ...(needsAttentionOnly ? { status: { not: "RECONCILED" } } : {}),
+      },
       orderBy: { createdAt: "desc" },
       include: {
         merchant: { select: { name: true } },
@@ -84,6 +102,20 @@ export default async function SettlementsPage() {
         </Link>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href={{
+            pathname: "/settlements",
+            query: { ...(from ? { from } : {}), ...(to ? { to } : {}), ...(needsAttentionOnly ? {} : { attention: "1" }) },
+          }}
+          className="text-sm text-muted-foreground hover:text-foreground hover:underline"
+        >
+          {needsAttentionOnly ? "Show all" : "Needs attention only (unreconciled)"}
+        </Link>
+      </div>
+
+      <DateRangeHeader from={from} to={to} reportType="settlement-batches" />
+
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -110,8 +142,9 @@ export default async function SettlementsPage() {
                   ...unbatchedOptions.filter((t) => t.merchantId === b.merchantId),
                   ...ownTxns,
                 ];
+                const attentionRow = b.status !== "RECONCILED";
                 return (
-                  <TableRow key={b.id}>
+                  <TableRow key={b.id} className={attentionRow ? NEEDS_ATTENTION_ROW_CLASS : undefined}>
                     <TableCell>{format(b.depositDate, "yyyy-MM-dd")}</TableCell>
                     <TableCell>{b.merchant.name}</TableCell>
                     <TableCell>{b.bankAccount.name}</TableCell>
@@ -120,15 +153,16 @@ export default async function SettlementsPage() {
                     <TableCell className="text-right">{b.depositAmount.toString()}</TableCell>
                     <TableCell
                       className={`text-right ${
-                        Number(b.differenceAmount) !== 0 ? "text-destructive font-medium" : ""
+                        Number(b.differenceAmount) !== 0 ? "text-red-600 dark:text-red-400 font-medium" : ""
                       }`}
                     >
                       {b.differenceAmount.toString()}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={b.status === "RECONCILED" ? "default" : "destructive"}>
-                        {b.status}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        {attentionRow && <AlertTriangle className="size-3.5 text-amber-600 dark:text-amber-400" />}
+                        <ToneBadge tone={statusTone.settlementBatch(b.status)}>{b.status}</ToneBadge>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">

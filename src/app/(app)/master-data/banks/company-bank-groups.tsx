@@ -4,7 +4,10 @@ import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ToneBadge } from "@/components/ui/tone-badge";
 import { BankStatusBadge } from "@/components/master-data/bank-status-badge";
+import { DownloadButtons } from "@/components/exports/download-buttons";
+import { NEEDS_ATTENTION_ROW_CLASS } from "@/lib/status-tone";
 import type { BankAccountRow } from "./banks-client";
 
 const OTHER_GROUP_KEY = "__other__";
@@ -89,18 +92,22 @@ export function CompanyBankGroups({
                       <th className="px-4 py-2 text-right font-medium">Current Balance</th>
                       <th className="px-4 py-2 text-left font-medium">Company Status</th>
                       <th className="px-4 py-2 text-left font-medium">Active</th>
+                      <th className="px-4 py-2 text-left font-medium">Ledger</th>
                       <th className="px-4 py-2 text-right font-medium"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {group.accounts.map((r) => (
-                      <tr key={r.id} className="border-b last:border-b-0">
+                    {group.accounts.map((r) => {
+                      const negative = Number(r.currentBalance) < 0;
+                      const attentionRow = negative || r.status === "SUSPENDED";
+                      return (
+                      <tr key={r.id} className={`border-b last:border-b-0 ${attentionRow ? NEEDS_ATTENTION_ROW_CLASS : ""}`}>
                         <td className="px-4 py-2">{r.name}</td>
                         <td className="px-4 py-2 text-muted-foreground">{r.bankName ?? "—"}</td>
                         <td className="px-4 py-2">{r.currency}</td>
                         <td
                           className={`px-4 py-2 text-right font-medium ${
-                            Number(r.currentBalance) < 0 ? "text-destructive" : ""
+                            negative ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
                           }`}
                         >
                           {r.currentBalance}
@@ -109,9 +116,12 @@ export function CompanyBankGroups({
                           <BankStatusBadge status={r.status} />
                         </td>
                         <td className="px-4 py-2">
-                          <Badge variant={r.active ? "default" : "secondary"}>
+                          <ToneBadge tone={r.active ? "success" : "neutral"}>
                             {r.active ? "Active" : "Inactive"}
-                          </Badge>
+                          </ToneBadge>
+                        </td>
+                        <td className="px-4 py-2">
+                          <DownloadButtons reportType="bank-ledger" params={{ id: r.id }} />
                         </td>
                         <td className="px-4 py-2 text-right">
                           <div className="flex justify-end gap-2">
@@ -124,7 +134,8 @@ export function CompanyBankGroups({
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

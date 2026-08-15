@@ -12,9 +12,23 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyTableRow } from "@/components/ui/empty-table-row";
+import { DateRangeHeader } from "@/components/exports/date-range-header";
 
-export default async function ExpensesPage() {
+export default async function ExpensesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from, to } = await searchParams;
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(to) : null;
+
   const expenses = await prisma.expense.findMany({
+    where: {
+      ...(fromDate || toDate
+        ? { expenseDate: { ...(fromDate ? { gte: fromDate } : {}), ...(toDate ? { lte: toDate } : {}) } }
+        : {}),
+    },
     orderBy: { createdAt: "desc" },
     include: {
       expenseCategory: { select: { name: true } },
@@ -31,6 +45,8 @@ export default async function ExpensesPage() {
           New Expense
         </Link>
       </div>
+
+      <DateRangeHeader from={from} to={to} reportType="expenses" />
 
       <div className="rounded-md border">
         <Table>

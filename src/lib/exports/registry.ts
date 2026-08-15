@@ -11,6 +11,15 @@ import { fetchPartnerLedger } from "./reports/partner-ledger";
 import { fetchBonusPool } from "./reports/bonus-pool";
 import { fetchMerchantReconciliation } from "./reports/merchant-reconciliation";
 import { fetchDistributions } from "./reports/distributions";
+import { fetchTransactions } from "./reports/transactions";
+import { fetchRcv } from "./reports/rcv";
+import { fetchSettlementBatches } from "./reports/settlement-batches";
+import { fetchPayouts } from "./reports/payouts";
+import { fetchExpenses } from "./reports/expenses";
+import { fetchClientLedgerInternal } from "./reports/client-ledger-internal";
+import { fetchBankLedger } from "./reports/bank-ledger";
+import { fetchMerchantLedger } from "./reports/merchant-ledger";
+import { fetchThirdPartyLedger } from "./reports/third-party-ledger";
 
 export type ReportFetcher = (params: URLSearchParams) => Promise<ExportPayload>;
 
@@ -27,4 +36,13 @@ export const REPORT_REGISTRY: Record<string, ReportFetcher> = {
   "bonus-pool": fetchBonusPool,
   "merchant-reconciliation": fetchMerchantReconciliation,
   distributions: fetchDistributions,
+  transactions: fetchTransactions,
+  rcv: fetchRcv,
+  "settlement-batches": fetchSettlementBatches,
+  payouts: fetchPayouts,
+  expenses: fetchExpenses,
+  "client-ledger-internal": fetchClientLedgerInternal,
+  "bank-ledger": fetchBankLedger,
+  "merchant-ledger": fetchMerchantLedger,
+  "third-party-ledger": fetchThirdPartyLedger,
 };

@@ -798,6 +798,138 @@ export type TransactionHistoryEntry = {
   afterSnapshot: unknown;
 };
 
+// Undoes a Refund/Chargeback/Void entirely: deletes the ledger entries it
+// posted (both the client-ledger clawback and, if it reversed a settled
+// bank entry, that too) and restores the transaction to whatever status it
+// had right before -- read off the RCV action's own audit log entry rather
+// than guessed, since that's the one place the "before" status was actually
+// recorded.
+export async function deleteRcv(rcvId: string): Promise<ReviewResult> {
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const rcv = await prisma.refundChargebackVoid.findUnique({ where: { id: rcvId } });
+  if (!rcv) return { ok: false, error: "Entry not found." };
+  const monthError = await assertMonthOpen(rcv.accountingMonth);
+  if (monthError) return { ok: false, error: monthError };
+
+  const auditEntry = await prisma.auditLog.findFirst({
+    where: {
+      transactionId: rcv.originalTransactionId,
+      action: { in: ["REFUND", "CHARGEBACK", "VOID"] },
+    },
+    orderBy: { performedAt: "desc" },
+  });
+  const beforeStatus = (auditEntry?.beforeSnapshot as { status?: string } | null)?.status;
+  if (!auditEntry || !beforeStatus) {
+    return { ok: false, error: "Could not determine the transaction's prior status -- cannot safely undo." };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.clientLedger.deleteMany({ where: { sourceType: "RCV", sourceId: rcvId } });
+    await tx.bankLedger.deleteMany({ where: { sourceType: "RCV", sourceId: rcvId } });
+    await tx.transaction.update({
+      where: { id: rcv.originalTransactionId },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- read back from a stored audit snapshot, not a fixed literal
+      data: { status: beforeStatus as any },
+    });
+
+    await writeAuditLog(tx, {
+      entityType: "RefundChargebackVoid",
+      entityId: rcvId,
+      action: "DELETE",
+      performedById: user.id,
+      beforeSnapshot: JSON.parse(JSON.stringify(rcv)),
+    });
+
+    await tx.refundChargebackVoid.delete({ where: { id: rcvId } });
+  });
+
+  revalidatePath("/transactions");
+  revalidatePath("/client-ledger");
+  revalidatePath("/refunds-chargebacks-voids");
+  revalidatePath("/master-data/banks");
+  revalidatePath("/cash-position");
+  revalidatePath("/");
+  return { ok: true };
+}
+
+// Full delete: only for a transaction with no downstream financial
+// footprint that can't be safely undone. Blocked if it's already been paid
+// out (a real payout allocation references it -- that's historical fact,
+// use Refund/Chargeback instead) or is inside a settlement batch (remove it
+// from the batch first, same guard as batch delete already uses). Any
+// Refund/Chargeback/Void against it is deleted too, reversing their ledger
+// effects, so the whole linked set comes down together. FP revenue and the
+// 10% commission both recompute automatically -- they're live sums over
+// the transactions table, so removing this row removes its contribution
+// with no special-casing (same reason Void needed none).
+export async function deleteTransaction(id: string): Promise<ReviewResult> {
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const txn = await prisma.transaction.findUnique({ where: { id } });
+  if (!txn) return { ok: false, error: "Transaction not found." };
+  const monthError = await assertMonthOpen(txn.accountingMonth);
+  if (monthError) return { ok: false, error: monthError };
+  if (txn.settlementBatchId) {
+    return {
+      ok: false,
+      error: "This transaction is part of a settlement batch -- remove it from the batch first.",
+    };
+  }
+
+  const [payoutAllocationCount, childCount, derivedCount] = await Promise.all([
+    prisma.clientPayoutAllocation.count({ where: { transactionId: id } }),
+    prisma.transaction.count({ where: { parentId: id } }),
+    prisma.transaction.count({ where: { originalTxnId: id } }),
+  ]);
+  if (payoutAllocationCount > 0) {
+    return {
+      ok: false,
+      error: "This transaction has already been paid out to the client -- cannot delete. Use Refund/Chargeback instead.",
+    };
+  }
+  if (childCount > 0 || derivedCount > 0) {
+    return { ok: false, error: "This transaction has linked transactions and cannot be deleted." };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const rcvRows = await tx.refundChargebackVoid.findMany({ where: { originalTransactionId: id } });
+    for (const rcv of rcvRows) {
+      await tx.clientLedger.deleteMany({ where: { sourceType: "RCV", sourceId: rcv.id } });
+      await tx.bankLedger.deleteMany({ where: { sourceType: "RCV", sourceId: rcv.id } });
+    }
+    await tx.refundChargebackVoid.deleteMany({ where: { originalTransactionId: id } });
+    await tx.clientLedger.deleteMany({ where: { transactionId: id } });
+    await tx.bankLedger.deleteMany({ where: { sourceType: "TRANSACTION", sourceId: id } });
+    await tx.merchantLedger.updateMany({ where: { transactionId: id }, data: { transactionId: null } });
+    await tx.employeePartnerLedger.updateMany({ where: { transactionId: id }, data: { transactionId: null } });
+    await tx.adjustment.updateMany({ where: { relatedTransactionId: id }, data: { relatedTransactionId: null } });
+    // Detach (don't delete) prior audit history so it survives the row
+    // being gone -- exactly what "log the deletion even though the row is
+    // removed" requires: the content stays, only the strict per-transaction
+    // FK link is cleared.
+    await tx.auditLog.updateMany({ where: { transactionId: id }, data: { transactionId: null } });
+
+    await writeAuditLog(tx, {
+      entityType: "Transaction",
+      entityId: id,
+      action: "DELETE",
+      performedById: user.id,
+      beforeSnapshot: JSON.parse(JSON.stringify(txn)),
+      notes: rcvRows.length > 0 ? `Also removed ${rcvRows.length} linked refund/chargeback/void entr${rcvRows.length === 1 ? "y" : "ies"}.` : undefined,
+    });
+
+    await tx.transaction.delete({ where: { id } });
+  });
+
+  revalidatePath("/transactions");
+  revalidatePath("/client-ledger");
+  revalidatePath("/refunds-chargebacks-voids");
+  revalidatePath("/master-data/banks");
+  revalidatePath("/cash-position");
+  revalidatePath("/settlements");
+  revalidatePath("/");
+  return { ok: true };
+}
+
 export async function getTransactionHistory(transactionId: string): Promise<TransactionHistoryEntry[]> {
   await requireRole("OWNER", "ACCOUNTANT");
   const logs = await prisma.auditLog.findMany({

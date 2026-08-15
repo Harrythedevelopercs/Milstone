@@ -145,3 +145,82 @@ export async function createClientPayout(input: unknown): Promise<ActionResult> 
   revalidatePath("/client-ledger");
   return { ok: true };
 }
+
+// Reverses a payout entirely: removes what it paid out of the client's
+// ledger and the bank (including any FoundaPay-borne remittance fee --
+// same sourceType/sourceId, one deleteMany catches both), and recomputes
+// each allocated transaction's status from what it has left allocated
+// *excluding this payout* -- same Paid/Partially-Paid rule createClientPayout
+// itself uses. If nothing else was ever allocated to it, PAID/PARTIALLY_PAID
+// overwrote whatever settlement status the transaction actually had (Settled,
+// Client Payable from a batch, Approved, ...) -- that's only recoverable from
+// being back in a batch (Client Payable) or from its own audit trail
+// (Approve/Mark Settled), never assumed.
+export async function deleteClientPayout(id: string): Promise<ActionResult> {
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const payout = await prisma.clientPayout.findUnique({
+    where: { id },
+    include: { allocations: true },
+  });
+  if (!payout) return { ok: false, error: "Payout not found." };
+  const monthError = await assertMonthOpen(payout.accountingMonth);
+  if (monthError) return { ok: false, error: monthError };
+
+  await prisma.$transaction(async (tx) => {
+    for (const alloc of payout.allocations) {
+      const txn = await tx.transaction.findUnique({
+        where: { id: alloc.transactionId },
+        include: {
+          payoutAllocations: {
+            where: { clientPayoutId: { not: id } },
+            select: { amountAllocated: true },
+          },
+        },
+      });
+      if (!txn) continue;
+      const remaining = txn.payoutAllocations.reduce(
+        (sum, a) => sum.plus(a.amountAllocated),
+        new Decimal(0)
+      );
+      let newStatus: string;
+      if (remaining.isZero()) {
+        if (txn.settlementBatchId) {
+          newStatus = "CLIENT_PAYABLE";
+        } else {
+          const auditEntry = await tx.auditLog.findFirst({
+            where: { transactionId: txn.id, action: { in: ["APPROVE", "MARK_SETTLED"] } },
+            orderBy: { performedAt: "desc" },
+          });
+          newStatus = (auditEntry?.afterSnapshot as { status?: string } | null)?.status ?? "APPROVED";
+        }
+      } else if (remaining.greaterThanOrEqualTo(new Decimal(txn.clientNetPayable ?? 0).minus(0.01))) {
+        newStatus = "PAID";
+      } else {
+        newStatus = "PARTIALLY_PAID";
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- read back from settlement-batch inference or a stored audit snapshot, not a fixed literal
+      await tx.transaction.update({ where: { id: txn.id }, data: { status: newStatus as any } });
+    }
+
+    await tx.clientPayoutAllocation.deleteMany({ where: { clientPayoutId: id } });
+    await tx.clientLedger.deleteMany({ where: { sourceType: "PAYOUT", sourceId: id } });
+    await tx.bankLedger.deleteMany({ where: { sourceType: "PAYOUT", sourceId: id } });
+
+    await writeAuditLog(tx, {
+      entityType: "ClientPayout",
+      entityId: id,
+      action: "DELETE",
+      performedById: user.id,
+      beforeSnapshot: JSON.parse(JSON.stringify(payout)),
+    });
+
+    await tx.clientPayout.delete({ where: { id } });
+  });
+
+  revalidatePath("/payouts");
+  revalidatePath("/transactions");
+  revalidatePath("/client-ledger");
+  revalidatePath("/master-data/banks");
+  revalidatePath("/cash-position");
+  return { ok: true };
+}

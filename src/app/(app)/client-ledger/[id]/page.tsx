@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyTableRow } from "@/components/ui/empty-table-row";
+import { DateRangeHeader } from "@/components/exports/date-range-header";
 
 const SOURCE_LABEL: Record<string, string> = {
   TRANSACTION: "Transaction",
@@ -30,10 +31,15 @@ const SOURCE_LABEL: Record<string, string> = {
 
 export default async function ClientLedgerDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const { id } = await params;
+  const { from, to } = await searchParams;
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(to) : null;
 
   const client = await prisma.client.findUnique({ where: { id } });
   if (!client) notFound();
@@ -43,7 +49,7 @@ export default async function ClientLedgerDetailPage({
     orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
   });
 
-  const rows = entries.reduce<Array<(typeof entries)[number] & { runningBalance: number }>>(
+  const allRows = entries.reduce<Array<(typeof entries)[number] & { runningBalance: number }>>(
     (acc, e) => {
       const previousBalance = acc.length > 0 ? acc[acc.length - 1].runningBalance : 0;
       acc.push({ ...e, runningBalance: previousBalance + Number(e.amount) });
@@ -51,10 +57,19 @@ export default async function ClientLedgerDetailPage({
     },
     []
   );
-  const running = rows.length > 0 ? rows[rows.length - 1].runningBalance : 0;
+  const running = allRows.length > 0 ? allRows[allRows.length - 1].runningBalance : 0;
+  const rows = allRows.filter(
+    (r) => (!fromDate || r.entryDate >= fromDate) && (!toDate || r.entryDate <= toDate)
+  );
 
   return (
     <div className="space-y-4">
+      <DateRangeHeader
+        from={from}
+        to={to}
+        reportType="client-ledger-internal"
+        exportParams={{ id }}
+      />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">

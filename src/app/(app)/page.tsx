@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/rbac";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OwnerDashboard } from "./owner-dashboard";
 import { AccountantDashboard } from "./accountant-dashboard";
+import { NeedsAttentionSection } from "./needs-attention-section";
 
 export default async function HomePage({
   searchParams,
@@ -50,6 +51,8 @@ export default async function HomePage({
           </button>
         </form>
       </div>
+
+      <NeedsAttentionSection />
 
       {user.role === "OWNER" ? (
         <OwnerDashboard accountingMonth={accountingMonth} />

@@ -12,17 +12,36 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyTableRow } from "@/components/ui/empty-table-row";
+import { DateRangeHeader } from "@/components/exports/date-range-header";
+import { DeletePayoutAction } from "./delete-payout-action";
 
-export default async function PayoutsPage() {
-  const payouts = await prisma.clientPayout.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      client: { select: { name: true } },
-      payoutMethod: { select: { name: true } },
-      bankAccount: { select: { name: true } },
-      _count: { select: { allocations: true } },
-    },
-  });
+export default async function PayoutsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from, to } = await searchParams;
+  const fromDate = from ? new Date(from) : null;
+  const toDate = to ? new Date(to) : null;
+
+  const [payouts, closedMonths] = await Promise.all([
+    prisma.clientPayout.findMany({
+      where: {
+        ...(fromDate || toDate
+          ? { payoutDate: { ...(fromDate ? { gte: fromDate } : {}), ...(toDate ? { lte: toDate } : {}) } }
+          : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      include: {
+        client: { select: { name: true } },
+        payoutMethod: { select: { name: true } },
+        bankAccount: { select: { name: true } },
+        _count: { select: { allocations: true } },
+      },
+    }),
+    prisma.monthClose.findMany({ where: { status: "CLOSED" }, select: { accountingMonth: true } }),
+  ]);
+  const closedMonthSet = new Set(closedMonths.map((m) => m.accountingMonth));
 
   return (
     <div className="space-y-4">
@@ -32,6 +51,8 @@ export default async function PayoutsPage() {
           New Payout
         </Link>
       </div>
+
+      <DateRangeHeader from={from} to={to} reportType="payouts" />
 
       <div className="rounded-md border">
         <Table>
@@ -46,11 +67,12 @@ export default async function PayoutsPage() {
               <TableHead className="text-right">Remittance Fee</TableHead>
               <TableHead>Fee Bearer</TableHead>
               <TableHead>Reference</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {payouts.length === 0 ? (
-              <EmptyTableRow colSpan={9} message="No payouts yet." />
+              <EmptyTableRow colSpan={10} message="No payouts yet." />
             ) : (
               payouts.map((p) => (
                 <TableRow key={p.id}>
@@ -66,6 +88,11 @@ export default async function PayoutsPage() {
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {p.reference ?? "—"}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end">
+                      <DeletePayoutAction id={p.id} monthOpen={!closedMonthSet.has(p.accountingMonth)} />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

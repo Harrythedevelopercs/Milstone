@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/master-data/data-table";
+import { DownloadButtons } from "@/components/exports/download-buttons";
 import { CrudSheet } from "@/components/master-data/crud-sheet";
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { setMerchantActive } from "./actions";
@@ -114,6 +115,11 @@ export function MerchantsClient({
                 {r.active ? "Active" : "Inactive"}
               </Badge>
             ),
+          },
+          {
+            key: "ledger",
+            header: "Ledger",
+            render: (r) => <DownloadButtons reportType="merchant-ledger" params={{ id: r.id }} />,
           },
           {
             key: "actions",
