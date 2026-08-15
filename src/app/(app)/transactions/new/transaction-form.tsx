@@ -37,7 +37,7 @@ export type MerchantOption = {
   defaultReservePercent: string;
 };
 export type BankOption = { id: string; name: string };
-export type PaymentMethodOption = { id: string; name: string };
+export type PaymentMethodOption = { id: string; name: string; requiresMerchant: boolean };
 
 const FEE_BEARER_ITEMS = [
   { value: "FOUNDAPAY", label: "FoundaPay" },
@@ -87,6 +87,10 @@ export function TransactionForm({
   });
 
   const merchantId = form.watch("merchantId");
+  const paymentMethodId = form.watch("paymentMethodId");
+  const selectedPaymentMethod = paymentMethods.find((m) => m.id === paymentMethodId);
+  const isDirect = !!selectedPaymentMethod && !selectedPaymentMethod.requiresMerchant;
+
   useEffect(() => {
     if (editingId) return; // don't clobber the existing bank/reserve on edit
     const merchant = merchants.find((m) => m.id === merchantId);
@@ -96,6 +100,15 @@ export function TransactionForm({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [merchantId]);
+
+  useEffect(() => {
+    if (isDirect) {
+      form.setValue("merchantId", "");
+      form.setValue("merchantReservePercent", "0");
+      form.setValue("merchantFeeManual", "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirect]);
 
   function onSubmit(values: TransactionFormValues) {
     run(
@@ -196,34 +209,6 @@ export function TransactionForm({
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="merchantId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Merchant</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      items={merchants.map((m) => ({ value: m.id, label: m.name }))}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select a merchant" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {merchants.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>
-                            {m.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
                 name="paymentMethodId"
                 render={({ field }) => (
                   <FormItem>
@@ -250,6 +235,36 @@ export function TransactionForm({
                   </FormItem>
                 )}
               />
+              {!isDirect && (
+                <FormField
+                  control={form.control}
+                  name="merchantId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Merchant</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        items={merchants.map((m) => ({ value: m.id, label: m.name }))}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a merchant" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {merchants.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
 
             <FormField
@@ -257,7 +272,7 @@ export function TransactionForm({
               name="expectedBankId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Expected settlement bank</FormLabel>
+                  <FormLabel>{isDirect ? "Bank account (where the money landed)" : "Expected settlement bank"}</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
@@ -281,61 +296,65 @@ export function TransactionForm({
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="feeBearer"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Merchant fee bearer</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      items={FEE_BEARER_ITEMS}
-                    >
+            {!isDirect && (
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="feeBearer"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Merchant fee bearer</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        items={FEE_BEARER_ITEMS}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="FOUNDAPAY">FoundaPay</SelectItem>
+                          <SelectItem value="CLIENT">Client</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="merchantFeeManual"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Merchant fee (actual, optional)</FormLabel>
                       <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
+                        <Input {...field} type="number" step="0.01" placeholder="Use rule default" />
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="FOUNDAPAY">FoundaPay</SelectItem>
-                        <SelectItem value="CLIENT">Client</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="merchantFeeManual"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Merchant fee (actual, optional)</FormLabel>
-                    <FormControl>
-                      <Input {...field} type="number" step="0.01" placeholder="Use rule default" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="merchantReservePercent"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Merchant reserve %</FormLabel>
-                    <FormControl>
-                      <Input {...field} type="number" step="0.01" min="0" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {!isDirect && (
+                <FormField
+                  control={form.control}
+                  name="merchantReservePercent"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Merchant reserve %</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="number" step="0.01" min="0" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="fpReservePercent"

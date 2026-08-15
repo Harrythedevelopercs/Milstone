@@ -16,7 +16,7 @@ import { SubmitForm } from "./submit-form";
 export default async function SubmitPage() {
   const user = await requireUser();
 
-  const [clients, merchants, paymentMethods, mySubmissions] = await Promise.all([
+  const [clients, merchants, bankAccounts, paymentMethods, mySubmissions] = await Promise.all([
     prisma.client.findMany({
       where: { status: "ACTIVE" },
       orderBy: { name: "asc" },
@@ -27,10 +27,15 @@ export default async function SubmitPage() {
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
+    prisma.bankAccount.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
     prisma.paymentMethod.findMany({
       where: { status: "ACTIVE" },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, requiresMerchant: true },
     }),
     prisma.transaction.findMany({
       where: { createdById: user.id },
@@ -45,7 +50,12 @@ export default async function SubmitPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
-      <SubmitForm clients={clients} merchants={merchants} paymentMethods={paymentMethods} />
+      <SubmitForm
+        clients={clients}
+        merchants={merchants}
+        bankAccounts={bankAccounts}
+        paymentMethods={paymentMethods}
+      />
 
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">Your submissions</h2>
@@ -71,7 +81,7 @@ export default async function SubmitPage() {
                     <TableCell className="font-mono text-xs">{t.id}</TableCell>
                     <TableCell>{format(t.transactionDate, "yyyy-MM-dd")}</TableCell>
                     <TableCell>{t.client.name}</TableCell>
-                    <TableCell>{t.merchant.name}</TableCell>
+                    <TableCell>{t.merchant?.name ?? "Direct"}</TableCell>
                     <TableCell className="text-right">{t.grossAmount.toString()}</TableCell>
                     <TableCell>
                       <TransactionStatusBadge status={t.status} />

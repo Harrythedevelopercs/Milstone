@@ -18,22 +18,40 @@ export async function submitTransaction(input: unknown): Promise<SubmitTransacti
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const d = parsed.data;
 
-  const merchant = await prisma.merchant.findUnique({ where: { id: d.merchantId } });
-  if (!merchant || !merchant.active) {
-    return { ok: false, error: "Merchant not found or inactive." };
+  const paymentMethod = await prisma.paymentMethod.findUnique({ where: { id: d.paymentMethodId } });
+  if (!paymentMethod || paymentMethod.status !== "ACTIVE") {
+    return { ok: false, error: "Payment method not found or inactive." };
+  }
+  const isDirect = !paymentMethod.requiresMerchant;
+
+  let expectedBankId: string;
+  let merchantReservePercent = "0";
+  if (isDirect) {
+    if (!d.bankAccountId) return { ok: false, error: "Bank account is required for a direct-to-bank method." };
+    const bankAccount = await prisma.bankAccount.findUnique({ where: { id: d.bankAccountId } });
+    if (!bankAccount || !bankAccount.active) return { ok: false, error: "Bank account not found or inactive." };
+    expectedBankId = bankAccount.id;
+  } else {
+    if (!d.merchantId) return { ok: false, error: "Merchant is required." };
+    const merchant = await prisma.merchant.findUnique({ where: { id: d.merchantId } });
+    if (!merchant || !merchant.active) {
+      return { ok: false, error: "Merchant not found or inactive." };
+    }
+    expectedBankId = merchant.settlementBankId;
+    merchantReservePercent = merchant.defaultReservePercent.toString();
   }
 
   const result = await createTransactionCore({
     transactionDate: d.transactionDate,
     clientId: d.clientId,
     clientReference: d.clientReference || null,
-    merchantId: d.merchantId,
-    expectedBankId: merchant.settlementBankId,
+    merchantId: isDirect ? null : d.merchantId || null,
+    expectedBankId,
     paymentMethodId: d.paymentMethodId,
     grossAmount: d.grossAmount,
     feeBearer: "CLIENT",
     merchantFeeManual: null,
-    merchantReservePercent: merchant.defaultReservePercent.toString(),
+    merchantReservePercent,
     fpReservePercent: "0",
     documentUrl: d.documentUrl || null,
     notes: d.notes || null,

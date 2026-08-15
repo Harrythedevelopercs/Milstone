@@ -49,7 +49,7 @@ export default async function TransactionsPage() {
     prisma.paymentMethod.findMany({
       where: { status: "ACTIVE" },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, requiresMerchant: true },
     }),
     prisma.monthClose.findMany({ where: { status: "CLOSED" }, select: { accountingMonth: true } }),
   ]);
@@ -106,7 +106,7 @@ export default async function TransactionsPage() {
                   <TableCell className="font-mono text-xs">{t.id}</TableCell>
                   <TableCell>{format(t.transactionDate, "yyyy-MM-dd")}</TableCell>
                   <TableCell>{t.client.name}</TableCell>
-                  <TableCell>{t.merchant.name}</TableCell>
+                  <TableCell>{t.merchant?.name ?? "Direct"}</TableCell>
                   <TableCell>{t.paymentMethod.name}</TableCell>
                   <TableCell>{t.createdBy.name}</TableCell>
                   <TableCell className="text-right">{t.grossAmount.toString()}</TableCell>

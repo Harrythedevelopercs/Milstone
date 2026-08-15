@@ -4,7 +4,11 @@ export const employeeTransactionSchema = z.object({
   transactionDate: z.string().trim().min(1, "Required"),
   clientId: z.string().trim().min(1, "Required"),
   clientReference: z.string().trim().optional().or(z.literal("")),
-  merchantId: z.string().trim().min(1, "Required"),
+  // Empty for a direct-to-bank payment method (no merchant involved).
+  merchantId: z.string().trim().optional().or(z.literal("")),
+  // Only used for direct-to-bank methods, where there's no merchant to
+  // derive the settlement bank from.
+  bankAccountId: z.string().trim().optional().or(z.literal("")),
   paymentMethodId: z.string().trim().min(1, "Required"),
   grossAmount: z
     .string()

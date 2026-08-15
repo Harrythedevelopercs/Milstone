@@ -23,14 +23,19 @@ export default async function NewSettlementBatchPage() {
     }),
   ]);
 
-  const unsettledTransactions = unsettled.map((t) => ({
-    id: t.id,
-    merchantId: t.merchantId,
-    clientName: t.client.name,
-    paymentMethodName: t.paymentMethod.name,
-    grossAmount: t.grossAmount.toString(),
-    expectedSettlement: t.expectedSettlement.toString(),
-  }));
+  // Direct-to-bank transactions skip straight to Settled on approval, so
+  // they never appear here -- but the field is nullable at the schema
+  // level, so filter defensively rather than assuming it.
+  const unsettledTransactions = unsettled
+    .filter((t) => t.merchantId !== null)
+    .map((t) => ({
+      id: t.id,
+      merchantId: t.merchantId!,
+      clientName: t.client.name,
+      paymentMethodName: t.paymentMethod.name,
+      grossAmount: t.grossAmount.toString(),
+      expectedSettlement: t.expectedSettlement.toString(),
+    }));
 
   return (
     <div className="mx-auto max-w-2xl">

@@ -395,6 +395,9 @@ model PaymentMethod {
   id     String       @id @default(cuid())
   name   String       @unique
   status RecordStatus @default(ACTIVE)
+  // false = direct-to-bank (Wire, Cash, ACH, USDT, Zelle by default) -- no
+  // merchant/processor involved, funds land straight in a chosen bank account.
+  requiresMerchant Boolean @default(true) @map("requires_merchant")
 
   rateHistory  ClientRateHistory[]
   feeRules     MerchantFeeRule[]
@@ -514,8 +517,10 @@ model Transaction {
 
   clientId          String  @map("client_id")
   clientReference   String? @map("client_reference")
-  companyId         String  @map("company_id")
-  merchantId        String  @map("merchant_id")
+  // Null for direct-to-bank payments (no merchant/processor involved) --
+  // companyId is then derived from the chosen bank account's company, if any.
+  companyId         String? @map("company_id")
+  merchantId        String? @map("merchant_id")
   expectedBankId    String  @map("expected_bank_id")
   employeePartnerId String? @map("employee_partner_id")
   businessUnitId    String? @map("business_unit_id")
@@ -567,8 +572,8 @@ model Transaction {
   approvedAt   DateTime? @map("approved_at")
 
   client          Client           @relation(fields: [clientId], references: [id])
-  company         Company          @relation(fields: [companyId], references: [id])
-  merchant        Merchant         @relation(fields: [merchantId], references: [id])
+  company         Company?         @relation(fields: [companyId], references: [id])
+  merchant        Merchant?        @relation(fields: [merchantId], references: [id])
   expectedBank    BankAccount      @relation("TxnExpectedBank", fields: [expectedBankId], references: [id])
   employeePartner Employee?        @relation(fields: [employeePartnerId], references: [id])
   businessUnit    BusinessUnit?    @relation(fields: [businessUnitId], references: [id])

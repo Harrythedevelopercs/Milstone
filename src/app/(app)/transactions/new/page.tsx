@@ -35,7 +35,7 @@ export default async function NewTransactionPage() {
     prisma.paymentMethod.findMany({
       where: { status: "ACTIVE" },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, requiresMerchant: true },
     }),
     prisma.payoutMethod.findMany({
       where: { status: "ACTIVE" },

@@ -18,7 +18,8 @@ export const transactionSchema = z.object({
   transactionDate: z.string().trim().min(1, "Required"),
   clientId: z.string().trim().min(1, "Required"),
   clientReference: z.string().trim().optional().or(z.literal("")),
-  merchantId: z.string().trim().min(1, "Required"),
+  // Empty for a direct-to-bank payment method (no merchant involved).
+  merchantId: z.string().trim().optional().or(z.literal("")),
   expectedBankId: z.string().trim().min(1, "Required"),
   paymentMethodId: z.string().trim().min(1, "Required"),
   grossAmount: decimalString("Required"),

@@ -18,7 +18,7 @@ export type EditableTransaction = {
   transactionDate: string;
   clientId: string;
   clientReference: string | null;
-  merchantId: string;
+  merchantId: string | null;
   expectedBankId: string;
   paymentMethodId: string;
   grossAmount: string;
@@ -61,7 +61,7 @@ export function EditTransactionAction({
     transactionDate: format(new Date(row.transactionDate), "yyyy-MM-dd"),
     clientId: row.clientId,
     clientReference: row.clientReference ?? "",
-    merchantId: row.merchantId,
+    merchantId: row.merchantId ?? "",
     expectedBankId: row.expectedBankId,
     paymentMethodId: row.paymentMethodId,
     grossAmount: row.grossAmount,

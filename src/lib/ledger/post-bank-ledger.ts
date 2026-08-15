@@ -13,6 +13,7 @@ export async function postBankLedgerEntry(
     entryDate: Date;
     accountingMonth: string;
     sourceType:
+      | "TRANSACTION"
       | "SETTLEMENT_BATCH"
       | "PAYOUT"
       | "THIRD_PARTY_SETTLEMENT"

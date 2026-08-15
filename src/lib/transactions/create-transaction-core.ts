@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit-log";
 import { assertMonthOpen } from "@/lib/month-close/guard";
+import { postBankLedgerEntry } from "@/lib/ledger/post-bank-ledger";
 import { lookupClientRate, lookupMerchantFeeRule } from "./rate-lookup";
 import { accountingMonthOf, nextTransactionId } from "./transaction-id";
 import { postClientLedgerForTransaction } from "./post-ledger";
@@ -8,8 +9,8 @@ import {
   calculateClientNetPayable,
   calculateExpectedSettlement,
   calculateFpFee,
-  calculateMerchantFeeFromRule,
   calculatePercentAmount,
+  calculateMerchantFeeFromRule,
   money,
 } from "./money-math";
 
@@ -17,7 +18,10 @@ export type CoreTransactionInput = {
   transactionDate: string;
   clientId: string;
   clientReference: string | null;
-  merchantId: string;
+  // Null for a direct-to-bank payment (payment method's requiresMerchant is
+  // false) -- expectedBankId is then the bank the money actually landed in,
+  // chosen directly rather than derived from a merchant's settlement bank.
+  merchantId: string | null;
   expectedBankId: string;
   paymentMethodId: string;
   grossAmount: string;
@@ -40,18 +44,35 @@ export type CoreTransactionResult = { ok: true; id: string } | { ok: false; erro
 export async function createTransactionCore(
   input: CoreTransactionInput
 ): Promise<CoreTransactionResult> {
-  const [client, merchant] = await Promise.all([
+  const [client, paymentMethod, merchant, bankAccount] = await Promise.all([
     prisma.client.findUnique({ where: { id: input.clientId } }),
-    prisma.merchant.findUnique({
-      where: { id: input.merchantId },
-      include: { company: { select: { employeePartnerId: true } } },
-    }),
+    prisma.paymentMethod.findUnique({ where: { id: input.paymentMethodId } }),
+    input.merchantId
+      ? prisma.merchant.findUnique({
+          where: { id: input.merchantId },
+          include: { company: { select: { employeePartnerId: true } } },
+        })
+      : null,
+    prisma.bankAccount.findUnique({ where: { id: input.expectedBankId } }),
   ]);
   if (!client || client.status !== "ACTIVE") {
     return { ok: false, error: "Client not found or inactive." };
   }
-  if (!merchant || !merchant.active) {
+  if (!paymentMethod || paymentMethod.status !== "ACTIVE") {
+    return { ok: false, error: "Payment method not found or inactive." };
+  }
+  const isDirect = !paymentMethod.requiresMerchant;
+  if (isDirect && input.merchantId) {
+    return { ok: false, error: `${paymentMethod.name} is a direct-to-bank method and cannot have a merchant.` };
+  }
+  if (!isDirect && !input.merchantId) {
+    return { ok: false, error: `${paymentMethod.name} requires a merchant.` };
+  }
+  if (!isDirect && (!merchant || !merchant.active)) {
     return { ok: false, error: "Merchant not found or inactive." };
+  }
+  if (!bankAccount || !bankAccount.active) {
+    return { ok: false, error: "Bank account not found or inactive." };
   }
 
   const transactionDate = new Date(input.transactionDate);
@@ -72,20 +93,32 @@ export async function createTransactionCore(
     };
   }
 
-  const feeRule = await lookupMerchantFeeRule(input.merchantId, input.paymentMethodId);
   const gross = input.grossAmount;
 
-  const merchantFeeDefault = feeRule
-    ? calculateMerchantFeeFromRule(gross, feeRule.feePercent, feeRule.flatFee)
-    : calculateMerchantFeeFromRule(gross, 0, 0);
-  const merchantFeeManualProvided = input.merchantFeeManual !== null && input.merchantFeeManual !== "";
-  const merchantFee = merchantFeeManualProvided ? input.merchantFeeManual! : merchantFeeDefault;
+  // Direct-to-bank: no merchant, so no merchant fee/reserve at all -- forced
+  // to zero regardless of what was submitted, not just defaulted.
+  const feeRule = isDirect || !merchant
+    ? null
+    : await lookupMerchantFeeRule(merchant.id, input.paymentMethodId);
+  const merchantFeeDefault = isDirect
+    ? calculateMerchantFeeFromRule(0, 0, 0)
+    : feeRule
+      ? calculateMerchantFeeFromRule(gross, feeRule.feePercent, feeRule.flatFee)
+      : calculateMerchantFeeFromRule(gross, 0, 0);
+  const merchantFeeManualProvided =
+    !isDirect && input.merchantFeeManual !== null && input.merchantFeeManual !== "";
+  const merchantFee = isDirect
+    ? "0"
+    : merchantFeeManualProvided
+      ? input.merchantFeeManual!
+      : merchantFeeDefault;
   const merchantFeeSource: "MANUAL" | "RULE_DEFAULT" = merchantFeeManualProvided
     ? "MANUAL"
     : "RULE_DEFAULT";
+  const merchantReservePercent = isDirect ? "0" : input.merchantReservePercent;
 
   const fpFee = calculateFpFee(gross, merchantFee, rate.ratePercent, rate.feeBasis);
-  const merchantReserveAmount = calculatePercentAmount(gross, input.merchantReservePercent);
+  const merchantReserveAmount = calculatePercentAmount(gross, merchantReservePercent);
   const fpReserveAmount = calculatePercentAmount(gross, input.fpReservePercent);
   const expectedSettlement = calculateExpectedSettlement(gross, merchantFee, merchantReserveAmount);
   const clientNetPayable = calculateClientNetPayable({
@@ -98,6 +131,10 @@ export async function createTransactionCore(
   });
 
   const isAutoApproved = input.status === "APPROVED";
+  // A direct payment's cash is already in the bank the moment it's approved
+  // -- there's no processor deposit to wait on, so it goes straight to
+  // Settled instead of sitting at Approved awaiting a settlement batch.
+  const finalStatus = isAutoApproved && isDirect ? "SETTLED" : input.status;
 
   const created = await prisma.$transaction(async (tx) => {
     const id = await nextTransactionId(tx, accountingMonth);
@@ -108,11 +145,11 @@ export async function createTransactionCore(
         accountingMonth,
         clientId: input.clientId,
         clientReference: input.clientReference,
-        companyId: merchant.companyId,
+        companyId: isDirect ? bankAccount.companyId : merchant!.companyId,
         merchantId: input.merchantId,
         expectedBankId: input.expectedBankId,
-        employeePartnerId: merchant.company.employeePartnerId,
-        businessUnitId: merchant.businessUnitId,
+        employeePartnerId: isDirect ? null : merchant!.company.employeePartnerId,
+        businessUnitId: isDirect ? null : merchant!.businessUnitId,
         paymentMethodId: input.paymentMethodId,
         grossAmount: gross,
         fpRatePercent: rate.ratePercent,
@@ -123,13 +160,14 @@ export async function createTransactionCore(
         merchantFee: money(merchantFee),
         merchantFeeSource,
         feeBearer: input.feeBearer,
-        merchantReservePercent: input.merchantReservePercent,
+        merchantReservePercent,
         merchantReserveAmount: money(merchantReserveAmount),
         fpReservePercent: input.fpReservePercent,
         fpReserveAmount: money(fpReserveAmount),
         expectedSettlement: money(expectedSettlement),
         clientNetPayable: money(clientNetPayable),
-        status: input.status,
+        status: finalStatus,
+        settlementDate: isAutoApproved && isDirect ? transactionDate : null,
         documentUrl: input.documentUrl,
         notes: input.notes,
         customerEmail: input.customerEmail || null,
@@ -159,6 +197,19 @@ export async function createTransactionCore(
         accountingMonth: row.accountingMonth,
         createdById: input.createdById,
       });
+
+      if (isDirect) {
+        await postBankLedgerEntry(tx, {
+          bankAccountId: input.expectedBankId,
+          amount: money(gross),
+          entryDate: row.transactionDate,
+          accountingMonth: row.accountingMonth,
+          sourceType: "TRANSACTION",
+          sourceId: row.id,
+          description: `Direct ${paymentMethod.name} received from ${client.name}`,
+          createdById: input.createdById,
+        });
+      }
     }
 
     return row;

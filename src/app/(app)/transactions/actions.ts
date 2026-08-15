@@ -8,6 +8,7 @@ import { requireRole } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit-log";
 import { createTransactionCore } from "@/lib/transactions/create-transaction-core";
 import { postClientLedgerForTransaction } from "@/lib/transactions/post-ledger";
+import { postBankLedgerEntry } from "@/lib/ledger/post-bank-ledger";
 import { accountingMonthOf } from "@/lib/transactions/transaction-id";
 import { lookupClientRate, lookupMerchantFeeRule } from "@/lib/transactions/rate-lookup";
 import {
@@ -37,7 +38,7 @@ export async function createTransaction(input: unknown): Promise<CreateTransacti
     transactionDate: d.transactionDate,
     clientId: d.clientId,
     clientReference: d.clientReference || null,
-    merchantId: d.merchantId,
+    merchantId: d.merchantId || null,
     expectedBankId: d.expectedBankId,
     paymentMethodId: d.paymentMethodId,
     grossAmount: d.grossAmount,
@@ -87,15 +88,38 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
     if (newMonthError) return { ok: false, error: newMonthError };
   }
 
-  const [client, merchant] = await Promise.all([
+  const [client, paymentMethod, merchant, bankAccount] = await Promise.all([
     prisma.client.findUnique({ where: { id: d.clientId } }),
-    prisma.merchant.findUnique({
-      where: { id: d.merchantId },
-      include: { company: { select: { employeePartnerId: true } } },
-    }),
+    prisma.paymentMethod.findUnique({ where: { id: d.paymentMethodId } }),
+    d.merchantId
+      ? prisma.merchant.findUnique({
+          where: { id: d.merchantId },
+          include: { company: { select: { employeePartnerId: true } } },
+        })
+      : null,
+    prisma.bankAccount.findUnique({ where: { id: d.expectedBankId } }),
   ]);
   if (!client || client.status !== "ACTIVE") return { ok: false, error: "Client not found or inactive." };
-  if (!merchant || !merchant.active) return { ok: false, error: "Merchant not found or inactive." };
+  if (!paymentMethod || paymentMethod.status !== "ACTIVE") {
+    return { ok: false, error: "Payment method not found or inactive." };
+  }
+  const isDirect = !paymentMethod.requiresMerchant;
+  const wasDirect = existing.merchantId === null;
+  if (isDirect && d.merchantId) {
+    return { ok: false, error: `${paymentMethod.name} is a direct-to-bank method and cannot have a merchant.` };
+  }
+  if (!isDirect && !d.merchantId) {
+    return { ok: false, error: `${paymentMethod.name} requires a merchant.` };
+  }
+  if (!isDirect && (!merchant || !merchant.active)) {
+    return { ok: false, error: "Merchant not found or inactive." };
+  }
+  if (!bankAccount || !bankAccount.active) return { ok: false, error: "Bank account not found or inactive." };
+  // A batched transaction is tied to a merchant deposit reconciliation --
+  // can't detach it into a direct-to-bank payment via edit.
+  if (isDirect && existing.settlementBatchId) {
+    return { ok: false, error: "Cannot switch to a direct-to-bank method: this transaction is part of a settlement batch." };
+  }
 
   const rate = await lookupClientRate(d.clientId, d.paymentMethodId, transactionDate);
   if (!rate) {
@@ -105,17 +129,21 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
     };
   }
 
-  const feeRule = await lookupMerchantFeeRule(d.merchantId, d.paymentMethodId);
   const gross = d.grossAmount;
-  const merchantFeeDefault = feeRule
-    ? calculateMerchantFeeFromRule(gross, feeRule.feePercent, feeRule.flatFee)
-    : calculateMerchantFeeFromRule(gross, 0, 0);
-  const merchantFeeManualProvided = d.merchantFeeManual !== null && d.merchantFeeManual !== "" && d.merchantFeeManual !== undefined;
-  const merchantFee = merchantFeeManualProvided ? d.merchantFeeManual! : merchantFeeDefault;
+  const feeRule = isDirect || !merchant ? null : await lookupMerchantFeeRule(merchant.id, d.paymentMethodId);
+  const merchantFeeDefault = isDirect
+    ? calculateMerchantFeeFromRule(0, 0, 0)
+    : feeRule
+      ? calculateMerchantFeeFromRule(gross, feeRule.feePercent, feeRule.flatFee)
+      : calculateMerchantFeeFromRule(gross, 0, 0);
+  const merchantFeeManualProvided =
+    !isDirect && d.merchantFeeManual !== null && d.merchantFeeManual !== "" && d.merchantFeeManual !== undefined;
+  const merchantFee = isDirect ? "0" : merchantFeeManualProvided ? d.merchantFeeManual! : merchantFeeDefault;
   const merchantFeeSource: "MANUAL" | "RULE_DEFAULT" = merchantFeeManualProvided ? "MANUAL" : "RULE_DEFAULT";
+  const merchantReservePercent = isDirect ? "0" : d.merchantReservePercent;
 
   const fpFee = calculateFpFee(gross, merchantFee, rate.ratePercent, rate.feeBasis);
-  const merchantReserveAmount = calculatePercentAmount(gross, d.merchantReservePercent);
+  const merchantReserveAmount = calculatePercentAmount(gross, merchantReservePercent);
   const fpReserveAmount = calculatePercentAmount(gross, d.fpReservePercent);
   const expectedSettlement = calculateExpectedSettlement(gross, merchantFee, merchantReserveAmount);
   const clientNetPayable = calculateClientNetPayable({
@@ -132,6 +160,15 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
   const clientChanged = existing.clientId !== d.clientId;
   const amountChanged = !oldClientNetPayable.equals(newClientNetPayable);
 
+  // A direct payment settles the instant it's approved -- if this edit
+  // makes an already-approved-or-later transaction direct for the first
+  // time, promote it the same way createTransactionCore/approveTransaction
+  // do. Going the other way (direct -> merchant-based), drop back to
+  // Approved since it now genuinely needs a real settlement step.
+  const statusForDirectSwitch =
+    !wasDirect && isDirect && existing.status === "APPROVED" ? "SETTLED" : null;
+  const statusForMerchantSwitch = wasDirect && !isDirect && existing.status === "SETTLED" ? "APPROVED" : null;
+
   const updated = await prisma.$transaction(async (tx) => {
     const row = await tx.transaction.update({
       where: { id },
@@ -140,11 +177,11 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
         accountingMonth,
         clientId: d.clientId,
         clientReference: d.clientReference || null,
-        companyId: merchant.companyId,
-        merchantId: d.merchantId,
+        companyId: isDirect ? bankAccount.companyId : merchant!.companyId,
+        merchantId: d.merchantId || null,
         expectedBankId: d.expectedBankId,
-        employeePartnerId: merchant.company.employeePartnerId,
-        businessUnitId: merchant.businessUnitId,
+        employeePartnerId: isDirect ? null : merchant!.company.employeePartnerId,
+        businessUnitId: isDirect ? null : merchant!.businessUnitId,
         paymentMethodId: d.paymentMethodId,
         grossAmount: gross,
         fpRatePercent: rate.ratePercent,
@@ -155,7 +192,7 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
         merchantFee: money(merchantFee),
         merchantFeeSource,
         feeBearer: d.feeBearer,
-        merchantReservePercent: d.merchantReservePercent,
+        merchantReservePercent,
         merchantReserveAmount: money(merchantReserveAmount),
         fpReservePercent: d.fpReservePercent,
         fpReserveAmount: money(fpReserveAmount),
@@ -166,8 +203,72 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
         customerEmail: d.customerEmail || null,
         cardLast4: d.cardLast4 || null,
         updatedById: user.id,
+        ...(statusForDirectSwitch
+          ? { status: statusForDirectSwitch, settlementDate: transactionDate }
+          : {}),
+        ...(statusForMerchantSwitch ? { status: statusForMerchantSwitch, settlementDate: null } : {}),
       },
     });
+
+    // Bank Ledger correction for direct-to-bank transactions: only relevant
+    // once the transaction has actually settled (a real BankLedger entry
+    // exists for it). Never rewrite that row -- reverse it and post a fresh
+    // one, same append-only pattern as the Client Ledger correction below.
+    const bankLedgerEntry = await tx.bankLedger.findFirst({
+      where: { sourceType: "TRANSACTION", sourceId: id },
+    });
+    if (bankLedgerEntry && wasDirect && isDirect) {
+      const oldGross = new Decimal(existing.grossAmount);
+      const newGross = new Decimal(gross);
+      if (!oldGross.equals(newGross) || existing.expectedBankId !== d.expectedBankId) {
+        await postBankLedgerEntry(tx, {
+          bankAccountId: existing.expectedBankId,
+          amount: oldGross.negated().toFixed(2),
+          entryDate: existing.transactionDate,
+          accountingMonth: existing.accountingMonth,
+          sourceType: "TRANSACTION",
+          sourceId: id,
+          description: `Correction: edit to ${id} (reversing prior direct deposit)`,
+          createdById: user.id,
+        });
+        await postBankLedgerEntry(tx, {
+          bankAccountId: d.expectedBankId,
+          amount: newGross.toFixed(2),
+          entryDate: transactionDate,
+          accountingMonth,
+          sourceType: "TRANSACTION",
+          sourceId: id,
+          description: `Correction: edit to ${id} (new direct deposit)`,
+          createdById: user.id,
+        });
+      }
+    } else if (bankLedgerEntry && wasDirect && !isDirect) {
+      // No longer a direct receipt -- the cash was never really "already in
+      // the bank" the way this transaction now claims, so reverse it.
+      await postBankLedgerEntry(tx, {
+        bankAccountId: existing.expectedBankId,
+        amount: new Decimal(existing.grossAmount).negated().toFixed(2),
+        entryDate: existing.transactionDate,
+        accountingMonth: existing.accountingMonth,
+        sourceType: "TRANSACTION",
+        sourceId: id,
+        description: `Correction: edit to ${id} (no longer direct-to-bank)`,
+        createdById: user.id,
+      });
+    } else if (!bankLedgerEntry && statusForDirectSwitch === "SETTLED") {
+      // Newly direct and was just promoted straight to Settled -- post the
+      // deposit for the first time, same as createTransactionCore.
+      await postBankLedgerEntry(tx, {
+        bankAccountId: d.expectedBankId,
+        amount: money(gross),
+        entryDate: transactionDate,
+        accountingMonth,
+        sourceType: "TRANSACTION",
+        sourceId: id,
+        description: `Direct ${paymentMethod.name} received from ${client.name}`,
+        createdById: user.id,
+      });
+    }
 
     // Only correct the ledger if this transaction ever actually posted
     // (i.e. was approved at some point) and either the amount or the
@@ -257,7 +358,10 @@ export type ReviewResult = { ok: true } | { ok: false; error: string };
 
 export async function approveTransaction(id: string): Promise<ReviewResult> {
   const user = await requireRole("OWNER", "ACCOUNTANT");
-  const txn = await prisma.transaction.findUnique({ where: { id } });
+  const txn = await prisma.transaction.findUnique({
+    where: { id },
+    include: { client: { select: { name: true } }, paymentMethod: { select: { name: true } } },
+  });
   if (!txn) return { ok: false, error: "Transaction not found." };
   if (txn.status !== "SUBMITTED" && txn.status !== "DETAILS_REQUESTED") {
     return { ok: false, error: `Cannot approve a transaction with status ${txn.status}.` };
@@ -265,10 +369,19 @@ export async function approveTransaction(id: string): Promise<ReviewResult> {
   const monthError = await assertMonthOpen(txn.accountingMonth);
   if (monthError) return { ok: false, error: monthError };
 
+  // Direct-to-bank transactions (no merchant) have their cash already in the
+  // bank the moment they're approved -- same reasoning as createTransactionCore.
+  const isDirect = txn.merchantId === null;
+
   await prisma.$transaction(async (tx) => {
     const updated = await tx.transaction.update({
       where: { id },
-      data: { status: "APPROVED", approvedById: user.id, approvedAt: new Date() },
+      data: {
+        status: isDirect ? "SETTLED" : "APPROVED",
+        approvedById: user.id,
+        approvedAt: new Date(),
+        settlementDate: isDirect ? txn.transactionDate : undefined,
+      },
     });
     await writeAuditLog(tx, {
       entityType: "Transaction",
@@ -287,6 +400,19 @@ export async function approveTransaction(id: string): Promise<ReviewResult> {
       accountingMonth: txn.accountingMonth,
       createdById: user.id,
     });
+
+    if (isDirect) {
+      await postBankLedgerEntry(tx, {
+        bankAccountId: txn.expectedBankId,
+        amount: txn.grossAmount,
+        entryDate: txn.transactionDate,
+        accountingMonth: txn.accountingMonth,
+        sourceType: "TRANSACTION",
+        sourceId: id,
+        description: `Direct ${txn.paymentMethod.name} received from ${txn.client.name}`,
+        createdById: user.id,
+      });
+    }
   });
 
   revalidatePath("/transactions");

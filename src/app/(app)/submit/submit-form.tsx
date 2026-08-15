@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,31 +30,47 @@ import { employeeTransactionSchema, type EmployeeTransactionFormValues } from ".
 import { submitTransaction } from "./actions";
 
 export type Option = { id: string; name: string };
+export type SubmitPaymentMethodOption = { id: string; name: string; requiresMerchant: boolean };
+
+const EMPTY_VALUES = {
+  transactionDate: format(new Date(), "yyyy-MM-dd"),
+  clientId: "",
+  clientReference: "",
+  merchantId: "",
+  bankAccountId: "",
+  paymentMethodId: "",
+  grossAmount: "",
+  documentUrl: "",
+  notes: "",
+};
 
 export function SubmitForm({
   clients,
   merchants,
+  bankAccounts,
   paymentMethods,
 }: {
   clients: Option[];
   merchants: Option[];
-  paymentMethods: Option[];
+  bankAccounts: Option[];
+  paymentMethods: SubmitPaymentMethodOption[];
 }) {
   const router = useRouter();
   const { run, isPending } = useCrudAction();
   const form = useForm<EmployeeTransactionFormValues>({
     resolver: zodResolver(employeeTransactionSchema),
-    defaultValues: {
-      transactionDate: format(new Date(), "yyyy-MM-dd"),
-      clientId: "",
-      clientReference: "",
-      merchantId: "",
-      paymentMethodId: "",
-      grossAmount: "",
-      documentUrl: "",
-      notes: "",
-    },
+    defaultValues: EMPTY_VALUES,
   });
+
+  const paymentMethodId = form.watch("paymentMethodId");
+  const selectedPaymentMethod = paymentMethods.find((m) => m.id === paymentMethodId);
+  const isDirect = !!selectedPaymentMethod && !selectedPaymentMethod.requiresMerchant;
+
+  useEffect(() => {
+    if (isDirect) form.setValue("merchantId", "");
+    else form.setValue("bankAccountId", "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirect]);
 
   function onSubmit(values: EmployeeTransactionFormValues) {
     run(
@@ -61,16 +78,7 @@ export function SubmitForm({
         const result = await submitTransaction(values);
         if (result.ok) {
           toast.success(`Submitted as ${result.id} — awaiting approval`);
-          form.reset({
-            transactionDate: format(new Date(), "yyyy-MM-dd"),
-            clientId: "",
-            clientReference: "",
-            merchantId: "",
-            paymentMethodId: "",
-            grossAmount: "",
-            documentUrl: "",
-            notes: "",
-          });
+          form.reset(EMPTY_VALUES);
           router.refresh();
           return { ok: true };
         }
@@ -149,34 +157,6 @@ export function SubmitForm({
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="merchantId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Merchant</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      items={merchants.map((m) => ({ value: m.id, label: m.name }))}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select a merchant" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {merchants.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>
-                            {m.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
                 name="paymentMethodId"
                 render={({ field }) => (
                   <FormItem>
@@ -203,6 +183,65 @@ export function SubmitForm({
                   </FormItem>
                 )}
               />
+              {isDirect ? (
+                <FormField
+                  control={form.control}
+                  name="bankAccountId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bank account (where the money landed)</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        items={bankAccounts.map((b) => ({ value: b.id, label: b.name }))}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a bank account" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {bankAccounts.map((b) => (
+                            <SelectItem key={b.id} value={b.id}>
+                              {b.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <FormField
+                  control={form.control}
+                  name="merchantId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Merchant</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        items={merchants.map((m) => ({ value: m.id, label: m.name }))}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a merchant" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {merchants.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
 
             <FormField

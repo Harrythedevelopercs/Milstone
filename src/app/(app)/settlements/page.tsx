@@ -48,17 +48,22 @@ export default async function SettlementsPage() {
     prisma.monthClose.findMany({ where: { status: "CLOSED" }, select: { accountingMonth: true } }),
   ]);
 
-  const unbatchedOptions: UnsettledTransaction[] = unbatched.map((t) => ({
-    id: t.id,
-    merchantId: t.merchantId,
-    clientName: t.client.name,
-    paymentMethodName: t.paymentMethod.name,
-    grossAmount: t.grossAmount.toString(),
-    expectedSettlement: t.expectedSettlement.toString(),
-  }));
+  // Direct-to-bank transactions skip straight to Settled on approval, so
+  // they never appear here -- but the field is nullable at the schema
+  // level, so filter defensively rather than assuming it.
+  const unbatchedOptions: UnsettledTransaction[] = unbatched
+    .filter((t) => t.merchantId !== null)
+    .map((t) => ({
+      id: t.id,
+      merchantId: t.merchantId!,
+      clientName: t.client.name,
+      paymentMethodName: t.paymentMethod.name,
+      grossAmount: t.grossAmount.toString(),
+      expectedSettlement: t.expectedSettlement.toString(),
+    }));
   const batchedOptionsByBatchId = new Map<string, UnsettledTransaction[]>();
   for (const t of batchedTxns) {
-    if (!t.settlementBatchId) continue;
+    if (!t.settlementBatchId || !t.merchantId) continue;
     const locked = t.status !== "CLIENT_PAYABLE";
     const list = batchedOptionsByBatchId.get(t.settlementBatchId) ?? [];
     list.push({
