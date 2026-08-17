@@ -51,7 +51,7 @@ export function SettingForm({
           name="key"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Key</FormLabel>
+              <FormLabel hint="A unique identifier for this setting (e.g. bonus_pool_percent). Can't be changed after creation.">Key</FormLabel>
               <FormControl>
                 <Input {...field} autoFocus disabled={!!editingKey} />
               </FormControl>
@@ -64,7 +64,7 @@ export function SettingForm({
           name="value"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Value</FormLabel>
+              <FormLabel hint="The setting's current value -- format depends on what this setting is used for (a number, a flag, etc.).">Value</FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>
@@ -77,7 +77,7 @@ export function SettingForm({
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Description</FormLabel>
+              <FormLabel hint="Optional -- explain what this setting controls, for whoever edits it next.">Description</FormLabel>
               <FormControl>
                 <Textarea {...field} rows={2} />
               </FormControl>

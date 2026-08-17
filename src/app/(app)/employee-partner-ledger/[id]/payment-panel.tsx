@@ -72,7 +72,7 @@ export function PaymentPanel({
               name="amount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Amount</FormLabel>
+                  <FormLabel hint="How much commission is being paid now.">Amount</FormLabel>
                   <FormControl>
                     <Input {...field} type="number" step="0.01" min="0" autoFocus />
                   </FormControl>
@@ -86,7 +86,7 @@ export function PaymentPanel({
               name="bankAccountId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Paid from</FormLabel>
+                  <FormLabel hint="Which FoundaPay bank account this commission is paid out of.">Paid from</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
@@ -114,7 +114,7 @@ export function PaymentPanel({
               name="paymentDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Date</FormLabel>
+                  <FormLabel hint="The date this payment was actually made.">Date</FormLabel>
                   <FormControl>
                     <Input {...field} type="date" />
                   </FormControl>
@@ -127,7 +127,7 @@ export function PaymentPanel({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel hint="Optional -- any context for this payment.">Notes</FormLabel>
                   <FormControl>
                     <Textarea {...field} rows={2} />
                   </FormControl>

@@ -46,7 +46,7 @@ export function VendorForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel hint="The vendor's display name, used when recording expenses paid to them.">Name</FormLabel>
               <FormControl>
                 <Input {...field} autoFocus />
               </FormControl>
@@ -59,7 +59,7 @@ export function VendorForm({
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel hint="Optional -- contact email for this vendor.">Email</FormLabel>
               <FormControl>
                 <Input {...field} type="email" />
               </FormControl>
@@ -72,7 +72,7 @@ export function VendorForm({
           name="phone"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Phone</FormLabel>
+              <FormLabel hint="Optional -- contact phone number for this vendor.">Phone</FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>

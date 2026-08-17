@@ -102,7 +102,7 @@ export function SubmitForm({
                 name="transactionDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date</FormLabel>
+                    <FormLabel hint="The date the customer's payment actually happened.">Date</FormLabel>
                     <FormControl>
                       <Input {...field} type="date" />
                     </FormControl>
@@ -115,7 +115,7 @@ export function SubmitForm({
                 name="grossAmount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Gross amount</FormLabel>
+                    <FormLabel hint="The full amount the customer paid, before any fees.">Gross amount</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" min="0" />
                     </FormControl>
@@ -130,7 +130,7 @@ export function SubmitForm({
               name="clientId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Client</FormLabel>
+                  <FormLabel hint="Which client this payment is for.">Client</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
@@ -160,7 +160,7 @@ export function SubmitForm({
                 name="paymentMethodId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment method</FormLabel>
+                    <FormLabel hint="How the customer paid.">Payment method</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
@@ -189,7 +189,7 @@ export function SubmitForm({
                   name="bankAccountId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Bank account (where the money landed)</FormLabel>
+                      <FormLabel hint="Which FoundaPay bank account actually received this payment.">Bank account (where the money landed)</FormLabel>
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
@@ -218,7 +218,7 @@ export function SubmitForm({
                   name="merchantId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Merchant</FormLabel>
+                      <FormLabel hint="The processor/merchant account this payment ran through.">Merchant</FormLabel>
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
@@ -249,7 +249,7 @@ export function SubmitForm({
               name="clientReference"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Client reference</FormLabel>
+                  <FormLabel hint="Optional -- the client's own invoice/order number for this transaction.">Client reference</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="Optional" />
                   </FormControl>
@@ -263,7 +263,7 @@ export function SubmitForm({
               name="documentUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Proof / document link</FormLabel>
+                  <FormLabel hint="Optional -- a link to a receipt or screenshot proving this payment.">Proof / document link</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="Optional URL" />
                   </FormControl>
@@ -277,7 +277,7 @@ export function SubmitForm({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel hint="Optional -- any free-text context for whoever reviews this submission.">Notes</FormLabel>
                   <FormControl>
                     <Textarea {...field} rows={3} />
                   </FormControl>

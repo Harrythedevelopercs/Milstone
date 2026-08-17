@@ -73,7 +73,7 @@ export function BankAccountForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel hint="An internal nickname distinguishing this account from the company's other accounts -- shown everywhere as 'Company - Bank Name'.">Name</FormLabel>
               <FormControl>
                 <Input {...field} autoFocus placeholder="e.g. Chase Operating" />
               </FormControl>
@@ -92,7 +92,7 @@ export function BankAccountForm({
           name="accountType"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Type</FormLabel>
+              <FormLabel hint="What kind of account this is -- a real bank account, a USDT wallet, or a physical cash drawer. All three are tracked the same way as 'cash position'.">Type</FormLabel>
               <Select value={field.value} onValueChange={field.onChange} items={ACCOUNT_TYPES}>
                 <FormControl>
                   <SelectTrigger className="w-full">
@@ -116,7 +116,7 @@ export function BankAccountForm({
           name="bankName"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Bank name</FormLabel>
+              <FormLabel hint="The real institution this account is held at.">Bank name</FormLabel>
               <FormControl>
                 <Input {...field} placeholder="e.g. Chase, Bank of America, Mercury, Wise, PNC, USDT Wallet, Cash" />
               </FormControl>
@@ -133,7 +133,7 @@ export function BankAccountForm({
           name="companyId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Company</FormLabel>
+              <FormLabel hint="Which FoundaPay company entity this account belongs to.">Company</FormLabel>
               <Select
                 value={field.value || "none"}
                 onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
@@ -165,7 +165,7 @@ export function BankAccountForm({
           name="status"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Status (for this company)</FormLabel>
+              <FormLabel hint="The relationship status of this bank with this company -- separate from Active/Inactive below, which controls whether it's selectable in forms.">Status (for this company)</FormLabel>
               <Select
                 value={field.value}
                 onValueChange={field.onChange}
@@ -193,7 +193,7 @@ export function BankAccountForm({
           name="accountNumberMasked"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Account number (masked)</FormLabel>
+              <FormLabel hint="Optional -- a masked reference (e.g. last 4 digits) for identification. Never enter the full account number.">Account number (masked)</FormLabel>
               <FormControl>
                 <Input {...field} placeholder="****1234" />
               </FormControl>
@@ -210,7 +210,7 @@ export function BankAccountForm({
             name="currency"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Currency</FormLabel>
+                <FormLabel hint="The account's native currency (e.g. USD, PKR). No automatic FX conversion happens anywhere -- non-USD transfers need a manual USD value.">Currency</FormLabel>
                 <FormControl>
                   <Input {...field} placeholder="USD" />
                 </FormControl>
@@ -223,7 +223,7 @@ export function BankAccountForm({
             name="country"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Country</FormLabel>
+                <FormLabel hint="Optional -- the country this account is held in.">Country</FormLabel>
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
@@ -237,7 +237,7 @@ export function BankAccountForm({
           name="openingBalance"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Opening balance</FormLabel>
+              <FormLabel hint="The account's balance at the moment you started tracking it here -- everything posted afterward builds on top of this.">Opening balance</FormLabel>
               <FormControl>
                 <Input {...field} type="number" step="0.01" />
               </FormControl>

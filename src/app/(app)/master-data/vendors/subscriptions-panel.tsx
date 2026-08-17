@@ -90,7 +90,7 @@ export function SubscriptionsPanel({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel hint="What this subscription is for (e.g. Dialpad, AWS).">Name</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -104,7 +104,7 @@ export function SubscriptionsPanel({
                 name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Amount</FormLabel>
+                    <FormLabel hint="The recurring charge amount -- pre-fills when recording an expense against this subscription.">Amount</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" min="0" />
                     </FormControl>
@@ -117,7 +117,7 @@ export function SubscriptionsPanel({
                 name="billingCycle"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Billing cycle</FormLabel>
+                    <FormLabel hint="How often this charges, e.g. Monthly, Annual.">Billing cycle</FormLabel>
                     <FormControl>
                       <Input {...field} placeholder="Monthly" />
                     </FormControl>
@@ -131,7 +131,7 @@ export function SubscriptionsPanel({
               name="nextBillingDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Next billing date</FormLabel>
+                  <FormLabel hint="When this subscription next charges -- updates automatically when you record an expense against it.">Next billing date</FormLabel>
                   <FormControl>
                     <Input {...field} type="date" />
                   </FormControl>

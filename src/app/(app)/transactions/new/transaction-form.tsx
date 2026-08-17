@@ -183,7 +183,7 @@ export function TransactionForm({
                 name="transactionDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Transaction date</FormLabel>
+                    <FormLabel hint="The date the customer's payment actually happened -- not today's date, and not the settlement date. Determines which accounting month this transaction posts to.">Transaction date</FormLabel>
                     <FormControl>
                       <Input {...field} type="date" />
                     </FormControl>
@@ -196,7 +196,7 @@ export function TransactionForm({
                 name="grossAmount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Gross amount</FormLabel>
+                    <FormLabel hint="The full amount the customer paid, before any fees or reserves are deducted. Enter it exactly as charged, in the transaction's currency.">Gross amount</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" min="0" />
                     </FormControl>
@@ -212,7 +212,7 @@ export function TransactionForm({
                 name="chargeType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Charge type</FormLabel>
+                    <FormLabel hint="How FoundaPay's fee is calculated. Percentage uses the client's configured rate for this payment method. Fixed lets you enter a flat fee instead. No charge waives FP's fee entirely for this transaction.">Charge type</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
@@ -241,7 +241,7 @@ export function TransactionForm({
                   name="fixedChargeAmount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Fixed charge amount</FormLabel>
+                      <FormLabel hint="The flat FoundaPay fee for this transaction, in place of the client's percentage rate.">Fixed charge amount</FormLabel>
                       <FormControl>
                         <Input {...field} type="number" step="0.01" min="0" />
                       </FormControl>
@@ -257,7 +257,7 @@ export function TransactionForm({
               name="clientId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Client</FormLabel>
+                  <FormLabel hint="Which client this money belongs to. Their configured rate for the payment method below determines FoundaPay's fee, and their reserve defaults (if set) pre-fill the reserve fields further down.">Client</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
@@ -286,7 +286,7 @@ export function TransactionForm({
               name="clientReference"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Client reference</FormLabel>
+                  <FormLabel hint="Optional -- the client's own invoice/order number for this transaction, for your records. Doesn't affect any calculation.">Client reference</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="Optional" />
                   </FormControl>
@@ -301,7 +301,7 @@ export function TransactionForm({
                 name="paymentMethodId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment method</FormLabel>
+                    <FormLabel hint="How the customer paid. Methods that require a merchant (e.g. card processors) show a Merchant field below; direct methods (e.g. Wire, USDT) ask which bank account the money landed in instead.">Payment method</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
@@ -330,7 +330,7 @@ export function TransactionForm({
                   name="merchantId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Merchant</FormLabel>
+                      <FormLabel hint="The processor/merchant account this payment ran through. Its configured settlement bank, fee rule, and default reserve % pre-fill automatically below.">Merchant</FormLabel>
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
@@ -364,7 +364,7 @@ export function TransactionForm({
                 name="expectedBankId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Bank account (where the money landed)</FormLabel>
+                    <FormLabel hint="For direct-to-bank methods only -- which of FoundaPay's own bank/USDT/cash accounts actually received this payment.">Bank account (where the money landed)</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
@@ -396,7 +396,7 @@ export function TransactionForm({
                   name="feeBearer"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Merchant fee bearer</FormLabel>
+                      <FormLabel hint="Who absorbs the processor's merchant fee. FoundaPay: it reduces FP's own margin. Client: it's deducted from what the client is owed instead.">Merchant fee bearer</FormLabel>
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
@@ -421,7 +421,7 @@ export function TransactionForm({
                   name="merchantFeeManual"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Merchant fee (actual, optional)</FormLabel>
+                      <FormLabel hint="Leave blank to use the merchant's configured fee rule for this payment method. Enter a number to override it with the actual fee the processor charged.">Merchant fee (actual, optional)</FormLabel>
                       <FormControl>
                         <Input {...field} type="number" step="0.01" placeholder="Use rule default" />
                       </FormControl>
@@ -439,7 +439,7 @@ export function TransactionForm({
                   name="merchantReservePercent"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Merchant reserve %</FormLabel>
+                      <FormLabel hint="Percent of the gross amount the processor withholds as a reserve, before it settles to FoundaPay's bank. Defaults from the client/merchant, but you can override it per transaction.">Merchant reserve %</FormLabel>
                       <FormControl>
                         <Input {...field} type="number" step="0.01" min="0" />
                       </FormControl>
@@ -454,7 +454,7 @@ export function TransactionForm({
                   name="merchantReserveDirection"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Reserve direction</FormLabel>
+                      <FormLabel hint="Whose money the merchant reserve is. Client-held: still the client's money, owed back to them once released. FP-fronted: FoundaPay's own money put up for the client, who owes it back. FoundaPay-owned: purely FP's own reserve.">Reserve direction</FormLabel>
                       <Select value={field.value} onValueChange={field.onChange} items={RESERVE_DIRECTION_ITEMS}>
                         <FormControl>
                           <SelectTrigger className="w-full">
@@ -485,7 +485,7 @@ export function TransactionForm({
                 name="fpReservePercent"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>FoundaPay reserve %</FormLabel>
+                    <FormLabel hint="Percent of the gross amount FoundaPay itself retains as a cushion, separate from anything the processor withholds. Always FoundaPay's own reserve.">FoundaPay reserve %</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" min="0" />
                     </FormControl>
@@ -501,7 +501,7 @@ export function TransactionForm({
                 name="customerEmail"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Customer email</FormLabel>
+                    <FormLabel hint="Optional -- the end customer's email, for your records only.">Customer email</FormLabel>
                     <FormControl>
                       <Input {...field} type="email" placeholder="Optional" />
                     </FormControl>
@@ -514,7 +514,7 @@ export function TransactionForm({
                 name="cardLast4"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Card last 4 digits</FormLabel>
+                    <FormLabel hint="Optional -- last 4 digits of the card used, for matching against statements later.">Card last 4 digits</FormLabel>
                     <FormControl>
                       <Input {...field} maxLength={4} placeholder="Optional" />
                     </FormControl>
@@ -529,7 +529,7 @@ export function TransactionForm({
               name="documentUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Proof / document link</FormLabel>
+                  <FormLabel hint="Optional -- a link to a receipt, screenshot, or other proof of this transaction (e.g. a shared drive or cloud storage URL).">Proof / document link</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="Optional URL" />
                   </FormControl>
@@ -543,7 +543,7 @@ export function TransactionForm({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel hint="Optional -- any free-text context worth keeping with this transaction.">Notes</FormLabel>
                   <FormControl>
                     <Textarea {...field} rows={3} />
                   </FormControl>

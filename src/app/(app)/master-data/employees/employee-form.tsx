@@ -58,7 +58,7 @@ export function EmployeeForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel hint="The employee's full name.">Name</FormLabel>
               <FormControl>
                 <Input {...field} autoFocus />
               </FormControl>
@@ -71,7 +71,7 @@ export function EmployeeForm({
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel hint="Optional -- the employee's contact email.">Email</FormLabel>
               <FormControl>
                 <Input {...field} type="email" />
               </FormControl>
@@ -84,7 +84,7 @@ export function EmployeeForm({
           name="phone"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Phone</FormLabel>
+              <FormLabel hint="Optional -- the employee's contact phone number.">Phone</FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>
@@ -97,7 +97,7 @@ export function EmployeeForm({
           name="salary"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Salary</FormLabel>
+              <FormLabel hint="The employee's monthly salary -- used when running monthly payroll distributions.">Salary</FormLabel>
               <FormControl>
                 <Input {...field} type="number" step="0.01" min="0" />
               </FormControl>
@@ -110,7 +110,10 @@ export function EmployeeForm({
           name="isEmployeePartner"
           render={({ field }) => (
             <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
-              <FormLabel className="mb-0">
+              <FormLabel
+                className="mb-0"
+                hint="If on, this employee earns 10% commission on FoundaPay's revenue from merchants under companies they're linked to."
+              >
                 Employee Partner (earns merchant commission)
               </FormLabel>
               <FormControl>
@@ -124,7 +127,7 @@ export function EmployeeForm({
           name="userId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Linked login account</FormLabel>
+              <FormLabel hint="Optional -- connects this employee record to their sign-in account, so their submissions can be tied back to them.">Linked login account</FormLabel>
               <Select
                 value={field.value || "none"}
                 onValueChange={(v) => field.onChange(v === "none" ? "" : v)}

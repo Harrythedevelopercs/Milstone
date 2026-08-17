@@ -81,7 +81,7 @@ export function ClientBehalfExpenseForm({
               name="clientId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Client</FormLabel>
+                  <FormLabel hint="Which client FoundaPay is paying this cost for. Their balance is reduced by the amount below.">Client</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
@@ -110,7 +110,7 @@ export function ClientBehalfExpenseForm({
               name="bankAccountId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Paid from</FormLabel>
+                  <FormLabel hint="Which FoundaPay bank account actually paid this cost.">Paid from</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
@@ -140,7 +140,7 @@ export function ClientBehalfExpenseForm({
                 name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Amount</FormLabel>
+                    <FormLabel hint="How much FoundaPay paid on the client's behalf -- deducted from what FP owes them.">Amount</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" min="0" />
                     </FormControl>
@@ -153,7 +153,7 @@ export function ClientBehalfExpenseForm({
                 name="expenseDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date</FormLabel>
+                    <FormLabel hint="The date this was actually paid.">Date</FormLabel>
                     <FormControl>
                       <Input {...field} type="date" />
                     </FormControl>
@@ -168,7 +168,7 @@ export function ClientBehalfExpenseForm({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>What was this for?</FormLabel>
+                  <FormLabel hint="A short description of what FoundaPay paid for -- shows on the client's ledger/statement.">What was this for?</FormLabel>
                   <FormControl>
                     <Textarea {...field} rows={2} placeholder="e.g. Dialpad subscription paid on their behalf" />
                   </FormControl>

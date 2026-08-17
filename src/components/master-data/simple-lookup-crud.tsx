@@ -132,7 +132,7 @@ export function SimpleLookupCrud({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel hint={`The ${entityLabel.toLowerCase()}'s display name, used throughout the app wherever a ${entityLabel.toLowerCase()} is picked.`}>Name</FormLabel>
                   <FormControl>
                     <Input {...field} autoFocus />
                   </FormControl>

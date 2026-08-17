@@ -57,7 +57,7 @@ export function PartnerForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel hint="The partner's full name.">Name</FormLabel>
               <FormControl>
                 <Input {...field} autoFocus />
               </FormControl>
@@ -70,7 +70,7 @@ export function PartnerForm({
           name="profitSharePercent"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Profit share %</FormLabel>
+              <FormLabel hint="This partner's percentage of distributable monthly profit -- used when running the Monthly Distributions.">Profit share %</FormLabel>
               <FormControl>
                 <Input {...field} type="number" step="0.01" min="0" max="100" />
               </FormControl>
@@ -83,7 +83,7 @@ export function PartnerForm({
           name="userId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Linked login account</FormLabel>
+              <FormLabel hint="Optional -- connects this partner record to their sign-in account.">Linked login account</FormLabel>
               <Select
                 value={field.value || "none"}
                 onValueChange={(v) => field.onChange(v === "none" ? "" : v)}

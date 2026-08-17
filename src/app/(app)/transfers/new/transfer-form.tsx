@@ -91,7 +91,7 @@ export function TransferForm({ accounts, clients }: { accounts: Option[]; client
                 name="fromBankAccountId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>From</FormLabel>
+                    <FormLabel hint="The FoundaPay account the money is moving out of.">From</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
@@ -119,7 +119,7 @@ export function TransferForm({ accounts, clients }: { accounts: Option[]; client
                 name="toBankAccountId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>To</FormLabel>
+                    <FormLabel hint="The FoundaPay account the money is moving into. Must be different from the From account.">To</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
@@ -150,7 +150,7 @@ export function TransferForm({ accounts, clients }: { accounts: Option[]; client
                 name="transferDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date</FormLabel>
+                    <FormLabel hint="The date this transfer actually happened.">Date</FormLabel>
                     <FormControl>
                       <Input {...field} type="date" />
                     </FormControl>
@@ -163,7 +163,7 @@ export function TransferForm({ accounts, clients }: { accounts: Option[]; client
                 name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Amount received (destination currency)</FormLabel>
+                    <FormLabel hint="How much actually arrived in the destination account, in that account's own currency. Doesn't include the fee -- enter that separately below.">Amount received (destination currency)</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" min="0" />
                     </FormControl>
@@ -179,7 +179,7 @@ export function TransferForm({ accounts, clients }: { accounts: Option[]; client
                 name="feeAmount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Transfer fee</FormLabel>
+                    <FormLabel hint="What it cost to move this money between accounts, if anything. Who pays it is set by Fee Bearer to the right.">Transfer fee</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" min="0" />
                     </FormControl>
@@ -192,7 +192,7 @@ export function TransferForm({ accounts, clients }: { accounts: Option[]; client
                 name="feeBearer"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Fee bearer</FormLabel>
+                    <FormLabel hint="Who absorbs the transfer fee. FoundaPay: deducted from the source account as FP's own cost. Client: billed to a client's ledger instead, picked below.">Fee bearer</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange} items={FEE_BEARER_ITEMS}>
                       <FormControl>
                         <SelectTrigger className="w-full">
@@ -221,7 +221,7 @@ export function TransferForm({ accounts, clients }: { accounts: Option[]; client
                 name="clientId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Client bearing the fee</FormLabel>
+                    <FormLabel hint="Which client's ledger gets charged for this transfer fee.">Client bearing the fee</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
@@ -252,7 +252,7 @@ export function TransferForm({ accounts, clients }: { accounts: Option[]; client
                 name="usdValue"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>USD accounting value (manual, no auto FX)</FormLabel>
+                    <FormLabel hint="Since the destination isn't USD, enter its USD-equivalent value yourself -- there's no automatic exchange-rate conversion. Leave blank to use the amount as-is.">USD accounting value (manual, no auto FX)</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" placeholder="Defaults to amount" />
                     </FormControl>
@@ -267,7 +267,7 @@ export function TransferForm({ accounts, clients }: { accounts: Option[]; client
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description</FormLabel>
+                  <FormLabel hint="What this transfer is for. Flows through to the client statement/ledger if a client bears the fee, and to the unified Transactions board either way.">Description</FormLabel>
                   <FormControl>
                     <Textarea {...field} rows={2} placeholder="What this transfer is for" />
                   </FormControl>

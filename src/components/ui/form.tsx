@@ -13,6 +13,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
+import { FieldHint } from "@/components/ui/field-hint"
 
 const Form = FormProvider
 
@@ -85,18 +86,23 @@ function FormItem({ className, ...props }: React.ComponentProps<"div">) {
 
 function FormLabel({
   className,
+  hint,
+  children,
   ...props
-}: React.ComponentProps<typeof Label>) {
+}: React.ComponentProps<typeof Label> & { hint?: React.ReactNode }) {
   const { error, formItemId } = useFormField()
 
   return (
     <Label
       data-slot="form-label"
       data-error={!!error}
-      className={cn("data-[error=true]:text-destructive", className)}
+      className={cn("data-[error=true]:text-destructive inline-flex items-center gap-1", className)}
       htmlFor={formItemId}
       {...props}
-    />
+    >
+      {children}
+      {hint && <FieldHint>{hint}</FieldHint>}
+    </Label>
   )
 }
 

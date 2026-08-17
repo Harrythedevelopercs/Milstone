@@ -95,7 +95,7 @@ export function SaleForm({
               name="productServiceId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Product / Service</FormLabel>
+                  <FormLabel hint="What was sold. Picking one pre-fills its default unit cost and sell price below.">Product / Service</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={(v) => {
@@ -132,7 +132,7 @@ export function SaleForm({
                 name="quantity"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Quantity</FormLabel>
+                    <FormLabel hint="How many units were sold.">Quantity</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="1" min="1" />
                     </FormControl>
@@ -145,7 +145,7 @@ export function SaleForm({
                 name="unitCost"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Unit cost</FormLabel>
+                    <FormLabel hint="What it cost FoundaPay to provide one unit -- drives the COGS/gross-profit figures below.">Unit cost</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" min="0" />
                     </FormControl>
@@ -158,7 +158,7 @@ export function SaleForm({
                 name="unitSellPrice"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Unit sell price</FormLabel>
+                    <FormLabel hint="What one unit was actually sold for.">Unit sell price</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" min="0" />
                     </FormControl>
@@ -178,7 +178,7 @@ export function SaleForm({
                 name="clientId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Client</FormLabel>
+                    <FormLabel hint="Optional -- which client this sale is for, if any.">Client</FormLabel>
                     <Select
                       value={field.value || "none"}
                       onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
@@ -207,7 +207,7 @@ export function SaleForm({
                 name="businessUnitId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Business unit</FormLabel>
+                    <FormLabel hint="Optional -- tags this sale to a specific business unit for its own P&L.">Business unit</FormLabel>
                     <Select
                       value={field.value || "none"}
                       onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
@@ -238,7 +238,7 @@ export function SaleForm({
               name="saleDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Sale date</FormLabel>
+                  <FormLabel hint="The date this sale actually happened.">Sale date</FormLabel>
                   <FormControl>
                     <Input {...field} type="date" />
                   </FormControl>
@@ -252,7 +252,7 @@ export function SaleForm({
               name="deductFromClientBalance"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
-                  <FormLabel className="mb-0">Deduct from client balance</FormLabel>
+                  <FormLabel className="mb-0" hint="If on, the sale revenue is deducted from the selected client's balance instead of being collected separately.">Deduct from client balance</FormLabel>
                   <FormControl>
                     <Switch checked={field.value} onCheckedChange={field.onChange} />
                   </FormControl>
@@ -265,7 +265,7 @@ export function SaleForm({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel hint="Optional -- any context for this sale.">Notes</FormLabel>
                   <FormControl>
                     <Textarea {...field} rows={2} />
                   </FormControl>

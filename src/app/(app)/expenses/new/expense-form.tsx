@@ -118,7 +118,7 @@ export function ExpenseForm({
               name="expenseCategoryId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Category</FormLabel>
+                  <FormLabel hint="What kind of expense this is -- drives which line it lands on in the Income Statement.">Category</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
@@ -148,7 +148,7 @@ export function ExpenseForm({
                 name="vendorId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Vendor</FormLabel>
+                    <FormLabel hint="Optional -- who this expense was paid to. Picking a vendor with subscriptions lets you pull in a recurring amount below.">Vendor</FormLabel>
                     <Select
                       value={field.value || "none"}
                       onValueChange={(v) => {
@@ -181,7 +181,7 @@ export function ExpenseForm({
                   name="subscriptionId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Subscription</FormLabel>
+                      <FormLabel hint="Pick one of this vendor's recurring subscriptions to auto-fill the amount below.">Subscription</FormLabel>
                       <Select
                         value={field.value || "none"}
                         onValueChange={(v) => {
@@ -220,7 +220,7 @@ export function ExpenseForm({
                 name="nextBillingDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Update next billing date</FormLabel>
+                    <FormLabel hint="Updates this subscription's next-billing date going forward, so it's ready for the next recurring entry.">Update next billing date</FormLabel>
                     <FormControl>
                       <Input {...field} type="date" />
                     </FormControl>
@@ -236,7 +236,7 @@ export function ExpenseForm({
                 name="companyId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Company</FormLabel>
+                    <FormLabel hint="Optional -- which FoundaPay company entity this expense belongs to, for company-level P&L reporting.">Company</FormLabel>
                     <Select
                       value={field.value || "none"}
                       onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
@@ -265,7 +265,7 @@ export function ExpenseForm({
                 name="businessUnitId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Business unit</FormLabel>
+                    <FormLabel hint="Optional -- tags this expense to a specific business unit for its own P&L.">Business unit</FormLabel>
                     <Select
                       value={field.value || "none"}
                       onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
@@ -296,7 +296,7 @@ export function ExpenseForm({
               name="bankAccountId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Paid from</FormLabel>
+                  <FormLabel hint="Which FoundaPay bank account this expense is paid out of. The full amount always leaves this account, regardless of who bears the cost.">Paid from</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
@@ -326,7 +326,7 @@ export function ExpenseForm({
                 name="feeBearer"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Bearer</FormLabel>
+                    <FormLabel hint="Who ultimately absorbs this cost. FoundaPay: a normal OpEx on FP's own P&L. Client: recovered from that client's ledger instead.">Bearer</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange} items={FEE_BEARER_ITEMS}>
                       <FormControl>
                         <SelectTrigger className="w-full">
@@ -352,7 +352,7 @@ export function ExpenseForm({
                   name="clientId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Client bearing this expense</FormLabel>
+                      <FormLabel hint="Which client's ledger gets charged the full expense amount.">Client bearing this expense</FormLabel>
                       <Select
                         value={field.value}
                         onValueChange={field.onChange}
@@ -384,7 +384,7 @@ export function ExpenseForm({
                 name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Amount</FormLabel>
+                    <FormLabel hint="The full expense amount, before considering who bears it.">Amount</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" min="0" />
                     </FormControl>
@@ -397,7 +397,7 @@ export function ExpenseForm({
                 name="expenseDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date</FormLabel>
+                    <FormLabel hint="The date this expense was actually incurred/paid -- determines which accounting month it posts to.">Date</FormLabel>
                     <FormControl>
                       <Input {...field} type="date" />
                     </FormControl>
@@ -412,7 +412,7 @@ export function ExpenseForm({
               name="recurring"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center justify-between rounded-md border p-3">
-                  <FormLabel className="mb-0">Recurring expense</FormLabel>
+                  <FormLabel className="mb-0" hint="Marks this as a recurring cost for your own tracking. Doesn't automatically create future entries -- you'd still record each occurrence.">Recurring expense</FormLabel>
                   <FormControl>
                     <Switch checked={field.value} onCheckedChange={field.onChange} />
                   </FormControl>
@@ -425,7 +425,7 @@ export function ExpenseForm({
               name="documentUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Receipt / document link</FormLabel>
+                  <FormLabel hint="Optional -- a link to the receipt or invoice for this expense.">Receipt / document link</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="Optional URL" />
                   </FormControl>
@@ -439,7 +439,7 @@ export function ExpenseForm({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description</FormLabel>
+                  <FormLabel hint="What this expense is for. Shows on the client's ledger/statement if a client bears it, and on the unified Transactions board either way.">Description</FormLabel>
                   <FormControl>
                     <Textarea {...field} rows={2} />
                   </FormControl>

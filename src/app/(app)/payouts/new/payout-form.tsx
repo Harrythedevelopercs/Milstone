@@ -139,7 +139,7 @@ export function PayoutForm({
               name="clientId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Client</FormLabel>
+                  <FormLabel hint="Which client you're paying. Their current balance, payable transactions, and total owed all update below once selected.">Client</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={(v) => {
@@ -169,7 +169,7 @@ export function PayoutForm({
 
             {clientId && (
               <div className="space-y-2">
-                <FormLabel>Transactions to pay</FormLabel>
+                <FormLabel hint="Check the transactions this payout settles. Each defaults to its full remaining balance, but you can edit the amount per transaction -- paying more than what's remaining adds to the client's advance.">Transactions to pay</FormLabel>
                 <div className="max-h-64 overflow-y-auto rounded-md border">
                   {clientTransactions.length === 0 ? (
                     <p className="p-4 text-sm text-muted-foreground">
@@ -232,7 +232,7 @@ export function PayoutForm({
               name="generalAmount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>General amount (optional, not tied to a transaction)</FormLabel>
+                  <FormLabel hint="A payout amount that isn't tied to any specific transaction -- e.g. a general advance or a catch-up payment. Combine it with allocations above, or use it entirely on its own.">General amount (optional, not tied to a transaction)</FormLabel>
                   <FormControl>
                     <Input {...field} type="number" step="0.01" min="0" placeholder="0.00" />
                   </FormControl>
@@ -277,7 +277,7 @@ export function PayoutForm({
                 name="payoutDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payout date</FormLabel>
+                    <FormLabel hint="The date this payout was actually sent to the client.">Payout date</FormLabel>
                     <FormControl>
                       <Input {...field} type="date" />
                     </FormControl>
@@ -290,7 +290,7 @@ export function PayoutForm({
                 name="payoutMethodId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payout method</FormLabel>
+                    <FormLabel hint="How the money was sent to the client (e.g. Wire, ACH, USDT).">Payout method</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
@@ -320,7 +320,7 @@ export function PayoutForm({
               name="bankAccountId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Paid from</FormLabel>
+                  <FormLabel hint="Which of FoundaPay's bank accounts the payout goes out of.">Paid from</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
@@ -350,7 +350,7 @@ export function PayoutForm({
                 name="feeBearer"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Remittance fee bearer</FormLabel>
+                    <FormLabel hint="Who absorbs the cost of sending this payout. FoundaPay: it's FP's own cost. Client: it's deducted from the client's balance.">Remittance fee bearer</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
@@ -375,7 +375,7 @@ export function PayoutForm({
                 name="remittanceFee"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Remittance fee</FormLabel>
+                    <FormLabel hint="What the payout method (wire/bank) charged to send this money, if anything.">Remittance fee</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" min="0" />
                     </FormControl>
@@ -390,7 +390,7 @@ export function PayoutForm({
               name="reference"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Reference</FormLabel>
+                  <FormLabel hint="Optional -- a wire/transfer confirmation number or other reference for this payout.">Reference</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="Optional" />
                   </FormControl>
@@ -404,7 +404,7 @@ export function PayoutForm({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel hint="Optional -- any free-text context worth keeping with this payout.">Notes</FormLabel>
                   <FormControl>
                     <Textarea {...field} rows={2} />
                   </FormControl>

@@ -57,7 +57,7 @@ export function CompanyForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel hint="The company's short display name, used throughout the app.">Name</FormLabel>
               <FormControl>
                 <Input {...field} autoFocus />
               </FormControl>
@@ -70,7 +70,7 @@ export function CompanyForm({
           name="legalName"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Legal name</FormLabel>
+              <FormLabel hint="Optional -- the company's full registered legal name, if different from the display name.">Legal name</FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>
@@ -83,7 +83,7 @@ export function CompanyForm({
           name="employeePartnerId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Employee Partner</FormLabel>
+              <FormLabel hint="Optional -- the employee partner who earns 10% of FoundaPay's revenue from every merchant under this company.">Employee Partner</FormLabel>
               <Select
                 value={field.value || "none"}
                 onValueChange={(v) => field.onChange(v === "none" ? "" : v)}

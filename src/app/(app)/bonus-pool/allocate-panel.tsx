@@ -58,7 +58,7 @@ export function AllocatePanel({ employees }: { employees: { id: string; name: st
               name="employeeId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Employee</FormLabel>
+                  <FormLabel hint="Which employee is receiving this bonus.">Employee</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
@@ -86,7 +86,7 @@ export function AllocatePanel({ employees }: { employees: { id: string; name: st
               name="amount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Amount</FormLabel>
+                  <FormLabel hint="How much of the bonus pool to allocate to this employee -- reduces the remaining unallocated pool.">Amount</FormLabel>
                   <FormControl>
                     <Input {...field} type="number" step="0.01" min="0" />
                   </FormControl>
@@ -99,7 +99,7 @@ export function AllocatePanel({ employees }: { employees: { id: string; name: st
               name="allocationDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Date</FormLabel>
+                  <FormLabel hint="The date this allocation is effective.">Date</FormLabel>
                   <FormControl>
                     <Input {...field} type="date" />
                   </FormControl>
@@ -112,7 +112,7 @@ export function AllocatePanel({ employees }: { employees: { id: string; name: st
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel hint="Optional -- why this bonus was allocated.">Notes</FormLabel>
                   <FormControl>
                     <Textarea {...field} rows={2} />
                   </FormControl>

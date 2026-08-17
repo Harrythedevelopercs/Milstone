@@ -115,7 +115,7 @@ export function MerchantForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel hint="The merchant account's display name, used throughout the app.">Name</FormLabel>
               <FormControl>
                 <Input {...field} autoFocus />
               </FormControl>
@@ -128,7 +128,7 @@ export function MerchantForm({
           name="processor"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Processor</FormLabel>
+              <FormLabel hint="The payment processor behind this merchant account (e.g. Stripe, a specific acquiring bank).">Processor</FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>
@@ -141,7 +141,7 @@ export function MerchantForm({
           name="companyId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Company</FormLabel>
+              <FormLabel hint="Which FoundaPay company entity owns this merchant account.">Company</FormLabel>
               <Select
                 value={field.value}
                 onValueChange={field.onChange}
@@ -169,7 +169,7 @@ export function MerchantForm({
           name="businessUnitId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Business unit</FormLabel>
+              <FormLabel hint="Optional -- tags transactions through this merchant to a specific business unit for its own P&L.">Business unit</FormLabel>
               <Select
                 value={field.value || "none"}
                 onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
@@ -201,7 +201,7 @@ export function MerchantForm({
           name="settlementBankId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Settlement bank</FormLabel>
+              <FormLabel hint="Where this merchant's transactions settle -- every transaction through it silently uses this bank account, regardless of what's picked on the transaction form.">Settlement bank</FormLabel>
               <Select value={field.value} onValueChange={field.onChange} items={bankSelectItems}>
                 <FormControl>
                   <SelectTrigger className="w-full">
@@ -253,7 +253,7 @@ export function MerchantForm({
           name="settlementCycle"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Settlement cycle</FormLabel>
+              <FormLabel hint="How often this processor pays out (e.g. Daily, Weekly, Monthly) -- for your own reference.">Settlement cycle</FormLabel>
               <FormControl>
                 <Input {...field} placeholder="e.g. Daily, Weekly, Monthly" />
               </FormControl>
@@ -267,7 +267,7 @@ export function MerchantForm({
             name="defaultReservePercent"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Default reserve %</FormLabel>
+                <FormLabel hint="The reserve percent that pre-fills whenever this merchant is picked on a transaction -- always overridable per transaction.">Default reserve %</FormLabel>
                 <FormControl>
                   <Input {...field} type="number" step="0.01" min="0" />
                 </FormControl>
@@ -280,7 +280,7 @@ export function MerchantForm({
             name="defaultReserveDirection"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Default direction</FormLabel>
+                <FormLabel hint="The fallback reserve direction for this merchant's transactions, used only when neither the transaction nor the client sets one.">Default direction</FormLabel>
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
@@ -310,7 +310,7 @@ export function MerchantForm({
             name="dailyLimit"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Daily limit</FormLabel>
+                <FormLabel hint="Optional -- the maximum this merchant can process in a single day, for your own reference.">Daily limit</FormLabel>
                 <FormControl>
                   <Input {...field} type="number" step="0.01" />
                 </FormControl>
@@ -323,7 +323,7 @@ export function MerchantForm({
             name="monthlyLimit"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Monthly limit</FormLabel>
+                <FormLabel hint="Optional -- the maximum this merchant can process in a month.">Monthly limit</FormLabel>
                 <FormControl>
                   <Input {...field} type="number" step="0.01" />
                 </FormControl>
@@ -336,7 +336,7 @@ export function MerchantForm({
             name="perTxnLimit"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Per-txn limit</FormLabel>
+                <FormLabel hint="Optional -- the maximum amount for any single transaction through this merchant.">Per-txn limit</FormLabel>
                 <FormControl>
                   <Input {...field} type="number" step="0.01" />
                 </FormControl>

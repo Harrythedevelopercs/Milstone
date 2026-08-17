@@ -89,7 +89,7 @@ export function ThirdPartySettlementForm({
               name="settlementPartyId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Settlement party</FormLabel>
+                  <FormLabel hint="The external party (not a client or merchant) involved in this local settlement.">Settlement party</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
@@ -118,7 +118,7 @@ export function ThirdPartySettlementForm({
               name="direction"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>What happened</FormLabel>
+                  <FormLabel hint="Which direction the money moved -- determines whether this reduces a client's payable or comes out of FoundaPay's own bank.">What happened</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange} items={DIRECTION_ITEMS}>
                     <FormControl>
                       <SelectTrigger className="w-full">
@@ -144,7 +144,7 @@ export function ThirdPartySettlementForm({
                 name="clientId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Client</FormLabel>
+                    <FormLabel hint="Which client's payable balance this settlement reduces.">Client</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
@@ -173,7 +173,7 @@ export function ThirdPartySettlementForm({
                 name="bankAccountId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Paid from</FormLabel>
+                    <FormLabel hint="Which FoundaPay bank account reimbursed the third party.">Paid from</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
@@ -204,7 +204,7 @@ export function ThirdPartySettlementForm({
                 name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Amount</FormLabel>
+                    <FormLabel hint="How much was settled.">Amount</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" min="0" />
                     </FormControl>
@@ -217,7 +217,7 @@ export function ThirdPartySettlementForm({
                 name="settlementDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date</FormLabel>
+                    <FormLabel hint="The date this settlement actually happened.">Date</FormLabel>
                     <FormControl>
                       <Input {...field} type="date" />
                     </FormControl>
@@ -232,7 +232,7 @@ export function ThirdPartySettlementForm({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel hint="Optional -- any context for this settlement.">Notes</FormLabel>
                   <FormControl>
                     <Textarea {...field} rows={2} />
                   </FormControl>

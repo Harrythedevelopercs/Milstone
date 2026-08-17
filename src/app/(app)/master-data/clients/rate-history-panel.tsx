@@ -22,6 +22,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { DataTable } from "@/components/master-data/data-table";
+import { FieldHint } from "@/components/ui/field-hint";
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { clientRateBatchSchema, type ClientRateBatchFormValues } from "./schema";
 import { saveClientRateBatch } from "./actions";
@@ -119,7 +120,7 @@ export function RateHistoryPanel({
               name="effectiveFrom"
               render={({ field }) => (
                 <FormItem className="max-w-xs">
-                  <FormLabel>Effective from (applies to every method below)</FormLabel>
+                  <FormLabel hint="The date these new rates start applying. Any previous rate for a method you fill in below is closed off the day before this date.">Effective from (applies to every method below)</FormLabel>
                   <FormControl>
                     <Input {...field} type="date" />
                   </FormControl>
@@ -133,8 +134,21 @@ export function RateHistoryPanel({
                 <thead>
                   <tr className="border-b bg-muted/40">
                     <th className="px-3 py-2 text-left font-medium">Method</th>
-                    <th className="px-3 py-2 text-left font-medium">Rate %</th>
-                    <th className="px-3 py-2 text-left font-medium">Fee Basis</th>
+                    <th className="px-3 py-2 text-left font-medium">
+                      <span className="inline-flex items-center gap-1">
+                        Rate %
+                        <FieldHint>FoundaPay&apos;s commission rate for this client on this payment method.</FieldHint>
+                      </span>
+                    </th>
+                    <th className="px-3 py-2 text-left font-medium">
+                      <span className="inline-flex items-center gap-1">
+                        Fee Basis
+                        <FieldHint>
+                          Gross: the rate applies to the full transaction amount. After Merchant Charges: the
+                          rate applies only after the merchant&apos;s own fee is deducted.
+                        </FieldHint>
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -214,7 +228,7 @@ export function RateHistoryPanel({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel hint="Optional -- any context for this rate change, applies to every method saved together.">Notes</FormLabel>
                   <FormControl>
                     <Textarea {...field} rows={2} placeholder="Optional, applies to this whole save" />
                   </FormControl>

@@ -4,7 +4,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { NavDropdown } from "@/components/nav-dropdown";
+import { HoverNavItem } from "@/components/hover-nav-item";
+
+const TRANSACTIONS_LINKS = [
+  { href: "/transactions/new", label: "New Transaction" },
+  { href: "/transactions/received", label: "Received Transactions" },
+];
 
 const MONEY_LINKS = [
   { href: "/settlements", label: "Settlements" },
@@ -29,6 +34,34 @@ const PAYROLL_LINKS = [
   { href: "/partner-ledger", label: "Partner Ledger" },
   { href: "/employee-partner-ledger", label: "Employee Partner Ledger" },
   { href: "/bonus-pool", label: "Bonus Pool" },
+];
+
+const STATEMENTS_LINKS = [
+  { href: "/statements/income-statement", label: "Income Statement (P&L)" },
+  { href: "/statements/balance-sheet", label: "Balance Sheet" },
+  { href: "/statements/cash-flow", label: "Cash Flow" },
+  { href: "/statements/consolidated-pnl", label: "Consolidated P&L" },
+  { href: "/statements/company-pnl", label: "Company P&L" },
+  { href: "/statements/business-unit-pnl", label: "Business Unit P&L" },
+];
+
+const MASTER_DATA_LINKS = [
+  { href: "/master-data/clients", label: "Clients" },
+  { href: "/master-data/merchants", label: "Merchants" },
+  { href: "/master-data/companies", label: "Companies" },
+  { href: "/master-data/settlement-parties", label: "Settlement Parties" },
+  { href: "/master-data/vendors", label: "Vendors" },
+  { href: "/master-data/employees", label: "Employees" },
+  { href: "/master-data/partners", label: "Partners" },
+  { href: "/master-data/banks", label: "Bank Accounts" },
+  { href: "/master-data/payment-methods", label: "Payment Methods" },
+  { href: "/master-data/payout-methods", label: "Payout Methods" },
+  { href: "/master-data/expense-categories", label: "Expense Categories" },
+  { href: "/master-data/products-services", label: "Products & Services" },
+  { href: "/master-data/business-units", label: "Business Units" },
+  { href: "/master-data/chart-of-accounts", label: "Chart of Accounts" },
+  { href: "/master-data/settings", label: "System Settings" },
+  { href: "/master-data/setup-guide", label: "Setup Guide" },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -70,30 +103,32 @@ export function AppNav({
       {canSeeMasterData && (
         <nav className="flex items-center gap-5">
           <NavLink href="/" label="Dashboard" active={pathname === "/"} />
-          <NavLink
-            href="/transactions"
+          <HoverNavItem
             label="Transactions"
+            href="/transactions"
             active={isActive(pathname, "/transactions")}
+            items={TRANSACTIONS_LINKS}
           />
-          <NavDropdown
+          <HoverNavItem
             label="Money"
-            items={MONEY_LINKS}
             active={MONEY_LINKS.some((i) => isActive(pathname, i.href))}
+            items={MONEY_LINKS}
           />
-          <NavDropdown
+          <HoverNavItem
             label="Ledgers"
-            items={LEDGER_LINKS}
             active={LEDGER_LINKS.some((i) => isActive(pathname, i.href))}
+            items={LEDGER_LINKS}
           />
-          <NavDropdown
+          <HoverNavItem
             label="Payroll"
-            items={PAYROLL_LINKS}
             active={PAYROLL_LINKS.some((i) => isActive(pathname, i.href))}
+            items={PAYROLL_LINKS}
           />
-          <NavLink
-            href="/statements"
+          <HoverNavItem
             label="Statements"
+            href="/statements"
             active={isActive(pathname, "/statements")}
+            items={STATEMENTS_LINKS}
           />
           <NavLink
             href="/reminders"
@@ -110,10 +145,11 @@ export function AppNav({
             label="Activity Log"
             active={isActive(pathname, "/activity-log")}
           />
-          <NavLink
-            href="/master-data"
+          <HoverNavItem
             label="Master Data"
+            href="/master-data"
             active={isActive(pathname, "/master-data")}
+            items={MASTER_DATA_LINKS}
           />
         </nav>
       )}

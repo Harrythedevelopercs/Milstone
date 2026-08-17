@@ -101,7 +101,7 @@ export function FeeRulesPanel({
               name="paymentMethodId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Payment method</FormLabel>
+                  <FormLabel hint="Which payment method this fee rule applies to. Picking one that already has a rule loads its current values for editing.">Payment method</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={(v) => {
@@ -133,7 +133,7 @@ export function FeeRulesPanel({
                 name="feePercent"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Fee %</FormLabel>
+                    <FormLabel hint="The processor's percentage fee for this payment method -- used as the default merchant fee on new transactions.">Fee %</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" />
                     </FormControl>
@@ -146,7 +146,7 @@ export function FeeRulesPanel({
                 name="flatFee"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Flat fee</FormLabel>
+                    <FormLabel hint="A fixed per-transaction fee, in addition to the percentage above.">Flat fee</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" />
                     </FormControl>
@@ -159,7 +159,7 @@ export function FeeRulesPanel({
                 name="chargebackFee"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Chargeback fee</FormLabel>
+                    <FormLabel hint="What the processor charges when a chargeback happens on this payment method, for reference.">Chargeback fee</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" />
                     </FormControl>
@@ -172,7 +172,7 @@ export function FeeRulesPanel({
                 name="refundFee"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Refund fee</FormLabel>
+                    <FormLabel hint="What the processor charges when a refund happens on this payment method, for reference.">Refund fee</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" />
                     </FormControl>
@@ -185,7 +185,7 @@ export function FeeRulesPanel({
                 name="monthlyFee"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Monthly fee</FormLabel>
+                    <FormLabel hint="A recurring monthly fee this processor charges for this payment method, for reference.">Monthly fee</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" />
                     </FormControl>

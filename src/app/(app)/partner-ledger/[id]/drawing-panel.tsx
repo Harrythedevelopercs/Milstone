@@ -64,7 +64,7 @@ export function DrawingPanel({
               name="amount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Amount</FormLabel>
+                  <FormLabel hint="How much this partner is drawing out personally.">Amount</FormLabel>
                   <FormControl>
                     <Input {...field} type="number" step="0.01" min="0" autoFocus />
                   </FormControl>
@@ -77,7 +77,7 @@ export function DrawingPanel({
               name="bankAccountId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Paid from</FormLabel>
+                  <FormLabel hint="Which FoundaPay bank account the draw is paid out of.">Paid from</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
@@ -105,7 +105,7 @@ export function DrawingPanel({
               name="drawingDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Date</FormLabel>
+                  <FormLabel hint="The date this draw was actually taken.">Date</FormLabel>
                   <FormControl>
                     <Input {...field} type="date" />
                   </FormControl>
@@ -118,7 +118,7 @@ export function DrawingPanel({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel hint="Optional -- any context for this draw.">Notes</FormLabel>
                   <FormControl>
                     <Textarea {...field} rows={2} />
                   </FormControl>

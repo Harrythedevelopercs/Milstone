@@ -68,7 +68,7 @@ export function ClientForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel hint="The client's display name, used everywhere throughout the app (dropdowns, statements, reports).">Name</FormLabel>
               <FormControl>
                 <Input {...field} autoFocus />
               </FormControl>
@@ -81,7 +81,7 @@ export function ClientForm({
           name="code"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Code</FormLabel>
+              <FormLabel hint="Optional -- a short unique code for this client, for quick reference. Leave blank if not needed.">Code</FormLabel>
               <FormControl>
                 <Input {...field} placeholder="Optional short code" />
               </FormControl>
@@ -94,7 +94,7 @@ export function ClientForm({
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel hint="Optional -- the client's contact email, for your records.">Email</FormLabel>
               <FormControl>
                 <Input {...field} type="email" />
               </FormControl>
@@ -107,7 +107,7 @@ export function ClientForm({
           name="phone"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Phone</FormLabel>
+              <FormLabel hint="Optional -- the client's contact phone number.">Phone</FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>
@@ -120,7 +120,7 @@ export function ClientForm({
           name="notes"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Notes</FormLabel>
+              <FormLabel hint="Optional -- any internal context about this client.">Notes</FormLabel>
               <FormControl>
                 <Textarea {...field} rows={3} />
               </FormControl>
@@ -142,7 +142,7 @@ export function ClientForm({
               name="defaultReserveType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Reserve amount type</FormLabel>
+                  <FormLabel hint="Whether this client's default reserve is a percentage of the gross amount or a fixed dollar amount.">Reserve amount type</FormLabel>
                   <Select
                     value={field.value || "none"}
                     onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
@@ -171,7 +171,7 @@ export function ClientForm({
                 name="defaultReserveValue"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>
+                    <FormLabel hint="The default reserve value for this client's transactions -- pre-fills the form but can always be changed per transaction.">
                       {form.watch("defaultReserveType") === "FIXED" ? "Fixed amount" : "Percent"}
                     </FormLabel>
                     <FormControl>
@@ -188,7 +188,7 @@ export function ClientForm({
             name="defaultReserveDirection"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Default direction</FormLabel>
+                <FormLabel hint="Whose money this client's reserve defaults to being -- client-held, FP-fronted, or FoundaPay-owned. Takes priority over the merchant's default; always overridable per transaction.">Default direction</FormLabel>
                 <Select
                   value={field.value || "none"}
                   onValueChange={(v) => field.onChange(v === "none" ? "" : v)}

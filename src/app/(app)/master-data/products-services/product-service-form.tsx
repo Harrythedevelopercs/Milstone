@@ -50,7 +50,7 @@ export function ProductServiceForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel hint="The product/service's display name, shown when recording a sale.">Name</FormLabel>
               <FormControl>
                 <Input {...field} autoFocus />
               </FormControl>
@@ -64,7 +64,7 @@ export function ProductServiceForm({
             name="cost"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Cost</FormLabel>
+                <FormLabel hint="Default cost per unit -- pre-fills when recording a sale, driving the COGS/gross-profit calculation.">Cost</FormLabel>
                 <FormControl>
                   <Input {...field} type="number" step="0.01" min="0" />
                 </FormControl>
@@ -77,7 +77,7 @@ export function ProductServiceForm({
             name="sellPrice"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Sell price</FormLabel>
+                <FormLabel hint="Default price per unit -- pre-fills when recording a sale.">Sell price</FormLabel>
                 <FormControl>
                   <Input {...field} type="number" step="0.01" min="0" />
                 </FormControl>

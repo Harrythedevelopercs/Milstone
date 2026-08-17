@@ -51,7 +51,7 @@ export function SettlementPartyForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel hint="This settlement party's display name, used when recording third-party settlements.">Name</FormLabel>
               <FormControl>
                 <Input {...field} autoFocus />
               </FormControl>
@@ -64,7 +64,7 @@ export function SettlementPartyForm({
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel hint="Optional -- contact email for this party.">Email</FormLabel>
               <FormControl>
                 <Input {...field} type="email" />
               </FormControl>
@@ -77,7 +77,7 @@ export function SettlementPartyForm({
           name="phone"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Phone</FormLabel>
+              <FormLabel hint="Optional -- contact phone number for this party.">Phone</FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>
@@ -90,7 +90,7 @@ export function SettlementPartyForm({
           name="notes"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Notes</FormLabel>
+              <FormLabel hint="Optional -- any internal context about this party.">Notes</FormLabel>
               <FormControl>
                 <Textarea {...field} rows={3} />
               </FormControl>

@@ -72,7 +72,7 @@ export function RunPayrollPanel({
                 name="bankAccountId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Paid from</FormLabel>
+                    <FormLabel hint="Which FoundaPay bank account pays out this month's salaries.">Paid from</FormLabel>
                     <Select
                       value={field.value}
                       onValueChange={field.onChange}
@@ -100,7 +100,7 @@ export function RunPayrollPanel({
                 name="paymentDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Payment date</FormLabel>
+                    <FormLabel hint="The date salaries are actually paid.">Payment date</FormLabel>
                     <FormControl>
                       <Input {...field} type="date" />
                     </FormControl>
@@ -168,7 +168,7 @@ export function RunEpCommissionsPanel({
                 name="runDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Run date</FormLabel>
+                    <FormLabel hint="The date this run is recorded as effective.">Run date</FormLabel>
                     <FormControl>
                       <Input {...field} type="date" />
                     </FormControl>
@@ -242,7 +242,7 @@ export function RunPartnerDistributionPanel({
                 name="runDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Run date</FormLabel>
+                    <FormLabel hint="The date this run is recorded as effective.">Run date</FormLabel>
                     <FormControl>
                       <Input {...field} type="date" />
                     </FormControl>

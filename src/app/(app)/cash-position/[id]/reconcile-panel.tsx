@@ -94,7 +94,7 @@ export function ReconcilePanel({
               name="asOfDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>As of date</FormLabel>
+                  <FormLabel hint="The date this reconciliation reflects.">As of date</FormLabel>
                   <FormControl>
                     <Input {...field} type="date" />
                   </FormControl>
@@ -107,7 +107,7 @@ export function ReconcilePanel({
               name="actualBalance"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Actual balance (from statement/count)</FormLabel>
+                  <FormLabel hint="What the real-world statement or physical count actually shows -- compared against the book balance to surface any difference.">Actual balance (from statement/count)</FormLabel>
                   <FormControl>
                     <Input {...field} type="number" step="0.01" autoFocus />
                   </FormControl>
@@ -120,7 +120,7 @@ export function ReconcilePanel({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel hint="Optional -- explain any difference found.">Notes</FormLabel>
                   <FormControl>
                     <Textarea {...field} rows={3} />
                   </FormControl>

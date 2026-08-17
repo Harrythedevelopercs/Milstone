@@ -143,7 +143,7 @@ export function SettlementForm({
               name="merchantId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Merchant{editingId ? " (locked)" : ""}</FormLabel>
+                  <FormLabel hint="Which merchant this deposit settles. Its configured settlement bank is used automatically.">Merchant{editingId ? " (locked)" : ""}</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={(v) => {
@@ -177,7 +177,7 @@ export function SettlementForm({
                 name="depositDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Deposit date</FormLabel>
+                    <FormLabel hint="The date this deposit actually landed in the bank.">Deposit date</FormLabel>
                     <FormControl>
                       <Input {...field} type="date" />
                     </FormControl>
@@ -190,7 +190,7 @@ export function SettlementForm({
                 name="depositAmount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Actual deposit amount</FormLabel>
+                    <FormLabel hint="What actually landed in the bank -- compared against the expected total of the transactions checked below to catch any difference.">Actual deposit amount</FormLabel>
                     <FormControl>
                       <Input {...field} type="number" step="0.01" />
                     </FormControl>
@@ -202,7 +202,7 @@ export function SettlementForm({
 
             {merchantId && (
               <div className="space-y-2">
-                <FormLabel>Transactions covered by this deposit</FormLabel>
+                <FormLabel hint="Check every approved transaction this deposit is settling. Their expected-settlement total is compared against the actual deposit amount above.">Transactions covered by this deposit</FormLabel>
                 <div className="max-h-64 overflow-y-auto rounded-md border">
                   {merchantTransactions.length === 0 ? (
                     <p className="p-4 text-sm text-muted-foreground">
@@ -254,7 +254,7 @@ export function SettlementForm({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel hint="Optional -- any context for this settlement batch.">Notes</FormLabel>
                   <FormControl>
                     <Textarea {...field} rows={2} />
                   </FormControl>

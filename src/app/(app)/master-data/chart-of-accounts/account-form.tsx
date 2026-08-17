@@ -64,7 +64,7 @@ export function AccountForm({
           name="code"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Code</FormLabel>
+              <FormLabel hint="A short unique reference number for this account (e.g. 1000s for Assets, 4000s for Revenue). Any scheme works as long as it's consistent.">Code</FormLabel>
               <FormControl>
                 <Input {...field} placeholder="e.g. 1000" autoFocus />
               </FormControl>
@@ -82,7 +82,7 @@ export function AccountForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel hint="The account's display name on financial statements.">Name</FormLabel>
               <FormControl>
                 <Input {...field} placeholder="e.g. Client Receivables" />
               </FormControl>
@@ -95,7 +95,7 @@ export function AccountForm({
           name="category"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Category</FormLabel>
+              <FormLabel hint="Which financial statement section this account rolls up under (Asset, Liability, Equity, Revenue, COGS, or Expense).">Category</FormLabel>
               <Select value={field.value} onValueChange={field.onChange} items={CATEGORIES}>
                 <FormControl>
                   <SelectTrigger className="w-full">
@@ -122,7 +122,7 @@ export function AccountForm({
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Description</FormLabel>
+              <FormLabel hint="Optional -- what this account represents, for reference.">Description</FormLabel>
               <FormControl>
                 <Textarea {...field} rows={2} placeholder="Optional -- what this account represents" />
               </FormControl>

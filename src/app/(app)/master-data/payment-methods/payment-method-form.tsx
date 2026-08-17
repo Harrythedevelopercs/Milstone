@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { FieldHint } from "@/components/ui/field-hint";
 import {
   Form,
   FormControl,
@@ -48,7 +49,7 @@ export function PaymentMethodForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel hint="The payment method's display name (e.g. Wire, Card, USDT), shown wherever a method is picked.">Name</FormLabel>
               <FormControl>
                 <Input {...field} autoFocus />
               </FormControl>
@@ -63,7 +64,13 @@ export function PaymentMethodForm({
             <FormItem>
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div className="space-y-0.5">
-                  <Label>Goes through a merchant</Label>
+                  <Label className="inline-flex items-center gap-1">
+                    Goes through a merchant
+                    <FieldHint>
+                      On: transaction entry requires picking a merchant (e.g. Card processors).
+                      Off: direct-to-bank -- entry just picks a bank account instead.
+                    </FieldHint>
+                  </Label>
                   <p className="text-sm text-muted-foreground">
                     On: transaction entry requires a merchant (e.g. Card, Amex). Off:
                     direct-to-bank -- entry just picks a bank account (e.g. Wire, Cash, ACH,
