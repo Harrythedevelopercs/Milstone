@@ -15,7 +15,12 @@ export type AuditAction =
   | "VOID"
   | "UPDATE"
   | "DELETE"
-  | "CHANGE_PASSWORD";
+  | "CHANGE_PASSWORD"
+  | "HOLD"
+  | "RELEASE_HOLD"
+  | "COMPLETE"
+  | "DISMISS"
+  | "FULFILL";
 
 export async function writeAuditLog(
   tx: Prisma.TransactionClient,

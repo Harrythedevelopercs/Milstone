@@ -41,6 +41,9 @@ export type CoreTransactionInput = {
   // SUBMITTED = awaiting accountant review (employee entry).
   // APPROVED = auto-approved (accountant/owner entering their own).
   status: "SUBMITTED" | "APPROVED";
+  // Defaults to the client's configured rate (PERCENTAGE) when omitted.
+  chargeType?: "PERCENTAGE" | "FIXED" | "NONE";
+  fixedChargeAmount?: string | null;
 };
 
 export type CoreTransactionResult = { ok: true; id: string } | { ok: false; error: string };
@@ -130,7 +133,15 @@ export async function createTransactionCore(
     : "RULE_DEFAULT";
   const merchantReservePercent = isDirect ? "0" : input.merchantReservePercent;
 
-  const fpFee = calculateFpFee(gross, merchantFee, rate.ratePercent, rate.feeBasis);
+  const chargeType = input.chargeType ?? "PERCENTAGE";
+  const fpFee = calculateFpFee(
+    gross,
+    merchantFee,
+    rate.ratePercent,
+    rate.feeBasis,
+    chargeType,
+    input.fixedChargeAmount
+  );
   const merchantReserveAmount = calculatePercentAmount(gross, merchantReservePercent);
   const fpReserveAmount = calculatePercentAmount(gross, input.fpReservePercent);
   const expectedSettlement = calculateExpectedSettlement(gross, merchantFee, merchantReserveAmount);
@@ -168,6 +179,8 @@ export async function createTransactionCore(
         fpRatePercent: rate.ratePercent,
         feeBasis: rate.feeBasis,
         fpFee: money(fpFee),
+        chargeType,
+        fixedChargeAmount: chargeType === "FIXED" ? money(input.fixedChargeAmount ?? 0) : null,
         merchantFeeManual: merchantFeeManualProvided ? input.merchantFeeManual! : null,
         merchantFeeDefault: money(merchantFeeDefault),
         merchantFee: money(merchantFee),

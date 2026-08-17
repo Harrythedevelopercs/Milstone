@@ -4,7 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export async function NeedsAttentionSection() {
-  const [unreconciledSettlements, pendingApprovals, outstandingChargebacks, negativeBalances] =
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  const [unreconciledSettlements, pendingApprovals, outstandingChargebacks, negativeBalances, dueReminders] =
     await Promise.all([
       prisma.settlementBatch.count({ where: { status: { not: "RECONCILED" } } }),
       prisma.transaction.count({ where: { status: { in: ["SUBMITTED", "DETAILS_REQUESTED"] } } }),
@@ -14,6 +17,7 @@ export async function NeedsAttentionSection() {
       prisma.clientLedger
         .groupBy({ by: ["clientId"], _sum: { amount: true } })
         .then((rows) => rows.filter((r) => Number(r._sum.amount ?? 0) < 0).length),
+      prisma.reminder.count({ where: { status: "OPEN", dueDate: { lte: today } } }),
     ]);
 
   const items = [
@@ -36,6 +40,11 @@ export async function NeedsAttentionSection() {
       label: "Negative client balances",
       count: negativeBalances,
       href: "/client-ledger?attention=1",
+    },
+    {
+      label: "Reminders due/overdue",
+      count: dueReminders,
+      href: "/reminders",
     },
   ];
 

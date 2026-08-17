@@ -23,6 +23,8 @@ export const transactionSchema = z.object({
   expectedBankId: z.string().trim().min(1, "Required"),
   paymentMethodId: z.string().trim().min(1, "Required"),
   grossAmount: decimalString("Required"),
+  chargeType: z.enum(["PERCENTAGE", "FIXED", "NONE"]),
+  fixedChargeAmount: optionalDecimalString,
   feeBearer: z.enum(["FOUNDAPAY", "CLIENT"]),
   merchantFeeManual: optionalDecimalString,
   merchantReservePercent: decimalString("Required"),
@@ -43,6 +45,9 @@ export const transactionSchema = z.object({
     .refine((v) => v === "" || /^\d{4}$/.test(v), { message: "Must be 4 digits" })
     .optional()
     .or(z.literal("")),
+}).refine((d) => d.chargeType !== "FIXED" || (d.fixedChargeAmount && d.fixedChargeAmount !== ""), {
+  message: "Enter the fixed charge amount.",
+  path: ["fixedChargeAmount"],
 });
 
 export type TransactionFormValues = z.infer<typeof transactionSchema>;
@@ -56,3 +61,11 @@ export const rcvSchema = z.object({
 });
 
 export type RcvFormValues = z.infer<typeof rcvSchema>;
+
+export const fulfillChargebackSchema = z.object({
+  fulfillmentDate: z.string().trim().min(1, "Required"),
+  fulfillmentBankAccountId: z.string().trim().min(1, "Required"),
+  notes: z.string().trim().optional().or(z.literal("")),
+});
+
+export type FulfillChargebackFormValues = z.infer<typeof fulfillChargebackSchema>;

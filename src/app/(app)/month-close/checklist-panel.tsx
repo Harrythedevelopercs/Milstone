@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
+import { ToneBadge } from "@/components/ui/tone-badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -36,7 +37,7 @@ export function ChecklistPanel({
   const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
   const [reason, setReason] = useState("");
 
-  const allPassed = items.every((i) => i.passed);
+  const allPassed = items.filter((i) => i.blocking).every((i) => i.passed);
   const isClosed = status === "CLOSED";
 
   function toggle(key: string, value: boolean) {
@@ -88,7 +89,15 @@ export function ChecklistPanel({
       <div className="divide-y rounded-md border">
         {items.map((item) => (
           <div key={item.key} className="flex items-center justify-between px-4 py-3 text-sm">
-            <span>{item.label}</span>
+            <span className="flex items-center gap-2">
+              {item.label}
+              {!item.blocking && <ToneBadge tone="neutral">Optional</ToneBadge>}
+              {item.key === "bankRecon" && (
+                <Link href="/reconciliation" className="text-xs text-primary hover:underline">
+                  Go to Reconciliation →
+                </Link>
+              )}
+            </span>
             {item.manual && !isClosed ? (
               <Switch
                 checked={item.passed}
@@ -96,9 +105,9 @@ export function ChecklistPanel({
                 disabled={isPending}
               />
             ) : (
-              <Badge variant={item.passed ? "default" : "secondary"}>
+              <ToneBadge tone={item.passed ? "success" : item.blocking ? "warning" : "neutral"}>
                 {item.passed ? "Done" : "Pending"}
-              </Badge>
+              </ToneBadge>
             )}
           </div>
         ))}

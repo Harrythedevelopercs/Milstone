@@ -20,6 +20,8 @@ const LEDGER_LINKS = [
   { href: "/client-ledger", label: "Client Ledger" },
   { href: "/cash-position", label: "Cash Position" },
   { href: "/merchant-reconciliation", label: "Merchant Reconciliation" },
+  { href: "/reconciliation", label: "Bank/USDT/Cash Reconciliation" },
+  { href: "/merchant-holds", label: "Merchant Hold/Reserve Report" },
 ];
 
 const PAYROLL_LINKS = [
@@ -92,6 +94,11 @@ export function AppNav({
             href="/statements"
             label="Statements"
             active={isActive(pathname, "/statements")}
+          />
+          <NavLink
+            href="/reminders"
+            label="Reminders"
+            active={isActive(pathname, "/reminders")}
           />
           <NavLink
             href="/month-close"

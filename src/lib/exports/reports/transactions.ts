@@ -6,11 +6,17 @@ import { dateRangeLabel, dateRangeWhere, num, parseDateRange } from "./helpers";
 export async function fetchTransactions(params: URLSearchParams): Promise<ExportPayload> {
   const range = parseDateRange(params);
   const status = params.get("status") || undefined;
+  const merchantId = params.get("merchantId") || undefined;
+  const clientId = params.get("clientId") || undefined;
+  const paymentMethodId = params.get("paymentMethodId") || undefined;
 
   const transactions = await prisma.transaction.findMany({
     where: {
       ...dateRangeWhere(range, "transactionDate"),
       ...(status ? { status: status as never } : {}),
+      ...(merchantId ? { merchantId: merchantId === "DIRECT" ? null : merchantId } : {}),
+      ...(clientId ? { clientId } : {}),
+      ...(paymentMethodId ? { paymentMethodId } : {}),
     },
     orderBy: { transactionDate: "asc" },
     include: {

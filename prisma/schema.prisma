@@ -32,6 +32,15 @@ enum MerchantFeeSource {
   RULE_DEFAULT
 }
 
+// How FP's fee on a transaction is derived. PERCENTAGE is the normal,
+// rate-driven default; FIXED and NONE are per-transaction overrides an
+// accountant can pick instead of the client's configured rate.
+enum ChargeType {
+  PERCENTAGE
+  FIXED
+  NONE
+}
+
 // Main lifecycle + linked/special states live in one status field on Transaction.
 // Linked events (refund/chargeback/void/hold/reserve/dispute) also get their own
 // row in RefundChargebackVoid or Adjustment for full detail; this enum reflects
@@ -174,6 +183,7 @@ model User {
   auditLogs            AuditLog[]
   monthClosesClosed    MonthClose[]  @relation("MonthClosedBy")
   monthClosesReopened  MonthClose[]  @relation("MonthReopenedBy")
+  reminders            Reminder[]
 
   @@map("users")
 }
@@ -366,6 +376,7 @@ model BankAccount {
   thirdPartySettlements ThirdPartySettlement[]
   ledgerEntries         BankLedger[]
   reconciliations       BankReconciliation[]
+  rcvFulfillments       RefundChargebackVoid[]
 
   @@map("bank_accounts")
 }
@@ -392,12 +403,12 @@ model BankReconciliation {
 }
 
 model PaymentMethod {
-  id     String       @id @default(cuid())
-  name   String       @unique
-  status RecordStatus @default(ACTIVE)
+  id               String       @id @default(cuid())
+  name             String       @unique
+  status           RecordStatus @default(ACTIVE)
   // false = direct-to-bank (Wire, Cash, ACH, USDT, Zelle by default) -- no
   // merchant/processor involved, funds land straight in a chosen bank account.
-  requiresMerchant Boolean @default(true) @map("requires_merchant")
+  requiresMerchant Boolean      @default(true) @map("requires_merchant")
 
   rateHistory  ClientRateHistory[]
   feeRules     MerchantFeeRule[]
@@ -534,6 +545,13 @@ model Transaction {
   feeBasis      FeeBasis @map("fee_basis")
   fpFee         Decimal  @map("fp_fee") @db.Decimal(18, 2)
 
+  // Defaults to PERCENTAGE (fpRatePercent x feeBasis, the client's configured
+  // rate). FIXED overrides fpFee with fixedChargeAmount regardless of gross;
+  // NONE forces fpFee to 0. fpFee itself always holds the final computed
+  // dollar amount either way, so every downstream consumer keeps reading it.
+  chargeType        ChargeType @default(PERCENTAGE) @map("charge_type")
+  fixedChargeAmount Decimal?   @map("fixed_charge_amount") @db.Decimal(18, 2)
+
   merchantFeeManual  Decimal?          @map("merchant_fee_manual") @db.Decimal(18, 2)
   merchantFeeDefault Decimal?          @map("merchant_fee_default") @db.Decimal(18, 2)
   merchantFee        Decimal           @map("merchant_fee") @db.Decimal(18, 2)
@@ -597,6 +615,7 @@ model Transaction {
   bankLedgerEntries            BankLedger[]
   employeePartnerLedgerEntries EmployeePartnerLedger[]
   auditLogs                    AuditLog[]
+  reminders                    Reminder[]
 
   @@index([accountingMonth])
   @@index([clientId])
@@ -692,7 +711,16 @@ model RefundChargebackVoid {
   approvedById          String?    @map("approved_by_id")
   approvedAt            DateTime?  @map("approved_at")
 
-  originalTransaction Transaction @relation(fields: [originalTransactionId], references: [id])
+  // Chargeback-only: the customer paid FoundaPay back directly, outside the
+  // original transaction/settlement flow. Recorded as a fresh credit (never
+  // rewrites the original chargeback's rows) into the client ledger and
+  // whichever bank the money actually landed in.
+  fulfilledAt              DateTime? @map("fulfilled_at")
+  fulfilledById            String?   @map("fulfilled_by_id")
+  fulfillmentBankAccountId String?   @map("fulfillment_bank_account_id")
+
+  originalTransaction    Transaction  @relation(fields: [originalTransactionId], references: [id])
+  fulfillmentBankAccount BankAccount? @relation(fields: [fulfillmentBankAccountId], references: [id])
 
   @@index([accountingMonth])
   @@index([originalTransactionId])
@@ -1066,4 +1094,45 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([performedAt])
   @@map("audit_logs")
+}
+
+enum ReminderType {
+  // Created via the Hold action -- previousStatus is set so releasing the
+  // hold can restore exactly what the transaction was before.
+  TRANSACTION
+  // Fully freeform: title/note/date the accountant typed in themselves, or
+  // a follow-up reminder attached to a transaction that isn't a hold (e.g.
+  // "check on this merchant's reserve release").
+  CUSTOM
+}
+
+enum ReminderStatus {
+  OPEN
+  DONE
+  DISMISSED
+}
+
+model Reminder {
+  id             String             @id @default(cuid())
+  type           ReminderType
+  title          String
+  note           String?
+  dueDate        DateTime           @map("due_date")
+  status         ReminderStatus     @default(OPEN)
+  transactionId  String?            @map("transaction_id")
+  // Only set on a hold-created reminder: what the transaction's status was
+  // right before it was put on Hold, so "release hold" is deterministic
+  // instead of guessed or reconstructed from the audit trail.
+  previousStatus TransactionStatus? @map("previous_status")
+  createdById    String             @map("created_by_id")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  completedAt    DateTime?          @map("completed_at")
+
+  transaction Transaction? @relation(fields: [transactionId], references: [id])
+  createdBy   User         @relation(fields: [createdById], references: [id])
+
+  @@index([dueDate])
+  @@index([status])
+  @@index([transactionId])
+  @@map("reminders")
 }

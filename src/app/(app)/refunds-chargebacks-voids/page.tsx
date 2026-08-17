@@ -15,6 +15,7 @@ import {
 import { EmptyTableRow } from "@/components/ui/empty-table-row";
 import { DateRangeHeader } from "@/components/exports/date-range-header";
 import { DeleteRcvAction } from "../transactions/delete-rcv-action";
+import { FulfillChargebackAction } from "../transactions/fulfill-chargeback-action";
 
 export default async function RefundsChargebacksVoidsPage({
   searchParams,
@@ -42,12 +43,17 @@ export default async function RefundsChargebacksVoidsPage({
     },
   });
 
-  const [creators, closedMonths] = await Promise.all([
+  const [creators, closedMonths, bankAccounts] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: [...new Set(rows.map((r) => r.createdById))] } },
       select: { id: true, name: true },
     }),
     prisma.monthClose.findMany({ where: { status: "CLOSED" }, select: { accountingMonth: true } }),
+    prisma.bankAccount.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
   const creatorName = new Map(creators.map((c) => [c.id, c.name]));
   const closedMonthSet = new Set(closedMonths.map((m) => m.accountingMonth));
@@ -126,15 +132,27 @@ export default async function RefundsChargebacksVoidsPage({
                   <TableCell className="text-right">{r.amount.toString()}</TableCell>
                   <TableCell className="text-right">{r.originalTransaction.fpFee.toString()}</TableCell>
                   <TableCell>
-                    <ToneBadge tone={statusTone.rcvStatus(r.status)}>
-                      {r.status.charAt(0) + r.status.slice(1).toLowerCase()}
-                    </ToneBadge>
+                    <div className="flex flex-col gap-1">
+                      <ToneBadge tone={statusTone.rcvStatus(r.status)}>
+                        {r.status.charAt(0) + r.status.slice(1).toLowerCase()}
+                      </ToneBadge>
+                      {r.fulfilledAt && (
+                        <span className="text-xs text-emerald-600 dark:text-emerald-400">
+                          Fulfilled {format(r.fulfilledAt, "yyyy-MM-dd")}
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{r.reasonCode ?? "—"}</TableCell>
                   <TableCell className="max-w-xs text-sm text-muted-foreground">{r.notes ?? "—"}</TableCell>
                   <TableCell>{creatorName.get(r.createdById) ?? "—"}</TableCell>
                   <TableCell>
-                    <div className="flex justify-end">
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {r.type === "CHARGEBACK" &&
+                        !r.fulfilledAt &&
+                        (r.status === "OPEN" || r.status === "DISPUTED") && (
+                          <FulfillChargebackAction rcvId={r.id} bankAccounts={bankAccounts} />
+                        )}
                       <DeleteRcvAction id={r.id} monthOpen={!closedMonthSet.has(r.accountingMonth)} />
                     </div>
                   </TableCell>

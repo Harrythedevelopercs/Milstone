@@ -2,18 +2,26 @@ import Decimal from "decimal.js";
 
 export type FeeBasis = "GROSS" | "AFTER_MERCHANT_CHARGES";
 export type FeeBearer = "FOUNDAPAY" | "CLIENT";
+export type ChargeType = "PERCENTAGE" | "FIXED" | "NONE";
 
 function pct(value: Decimal.Value): Decimal {
   return new Decimal(value).div(100);
 }
 
-// gross * rate% if Gross; (gross - merchantFee) * rate% if After Merchant Charges.
+// PERCENTAGE (default): gross * rate% if Gross; (gross - merchantFee) * rate%
+// if After Merchant Charges -- the client's configured rate, unchanged from
+// before charge types existed. FIXED: the entered dollar amount, verbatim,
+// independent of gross/merchantFee. NONE: no FP fee at all.
 export function calculateFpFee(
   gross: Decimal.Value,
   merchantFee: Decimal.Value,
   ratePercent: Decimal.Value,
-  feeBasis: FeeBasis
+  feeBasis: FeeBasis,
+  chargeType: ChargeType = "PERCENTAGE",
+  fixedChargeAmount?: Decimal.Value | null
 ): Decimal {
+  if (chargeType === "NONE") return new Decimal(0);
+  if (chargeType === "FIXED") return new Decimal(fixedChargeAmount ?? 0);
   const g = new Decimal(gross);
   const rate = pct(ratePercent);
   if (feeBasis === "GROSS") return g.mul(rate);

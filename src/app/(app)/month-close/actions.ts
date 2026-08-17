@@ -33,7 +33,7 @@ export async function closeMonth(accountingMonth: string): Promise<ActionResult>
   if (existing?.status === "CLOSED") return { ok: false, error: "This month is already closed." };
 
   const items = await computeChecklistItems(accountingMonth);
-  const incomplete = items.filter((i) => !i.passed);
+  const incomplete = items.filter((i) => i.blocking && !i.passed);
   if (incomplete.length > 0) {
     return {
       ok: false,

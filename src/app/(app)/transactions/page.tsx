@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { EmptyTableRow } from "@/components/ui/empty-table-row";
 import { TransactionStatusBadge } from "@/components/transactions/status-badge";
-import { DateRangeHeader } from "@/components/exports/date-range-header";
+import { DownloadButtons } from "@/components/exports/download-buttons";
 import { ReviewActions } from "./review-actions";
 import { MarkSettledAction } from "./settlement-actions";
 import { BulkSettleToolbar } from "./bulk-settle-toolbar";
@@ -20,54 +20,105 @@ import { RcvActions } from "./rcv-actions";
 import { EditTransactionAction } from "./edit-transaction-action";
 import { TransactionHistoryAction } from "./transaction-history-action";
 import { DeleteTransactionAction } from "./delete-transaction-action";
+import { HoldAction } from "./hold-action";
+
+const PAGE_SIZE = 100;
+
+const STATUS_OPTIONS = [
+  "ENTERED",
+  "SUBMITTED",
+  "DETAILS_REQUESTED",
+  "APPROVED",
+  "PROCESSED",
+  "SETTLED",
+  "CLIENT_PAYABLE",
+  "PARTIALLY_PAID",
+  "PAID",
+  "CLOSED",
+  "HOLD",
+  "RESERVE",
+  "VOID",
+  "REFUNDED",
+  "CHARGEBACK",
+  "DISPUTED",
+  "REJECTED",
+] as const;
+
+function statusLabel(status: string) {
+  return status
+    .split("_")
+    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
+type SearchParams = {
+  from?: string;
+  to?: string;
+  status?: string;
+  merchantId?: string;
+  clientId?: string;
+  paymentMethodId?: string;
+  page?: string;
+};
 
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
-  const { from, to } = await searchParams;
+  const sp = await searchParams;
+  const { from, to, status, merchantId, clientId, paymentMethodId } = sp;
   const fromDate = from ? new Date(from) : null;
   const toDate = to ? new Date(to) : null;
+  const page = Math.max(1, Number(sp.page) || 1);
 
-  const [transactions, merchants, clients, bankAccounts, paymentMethods, closedMonths] = await Promise.all([
-    prisma.transaction.findMany({
-      where: {
-        ...(fromDate || toDate
-          ? { transactionDate: { ...(fromDate ? { gte: fromDate } : {}), ...(toDate ? { lte: toDate } : {}) } }
-          : {}),
-      },
-      orderBy: { createdAt: "desc" },
-      take: fromDate || toDate ? undefined : 200,
-      include: {
-        client: { select: { name: true } },
-        merchant: { select: { name: true } },
-        paymentMethod: { select: { name: true } },
-        createdBy: { select: { name: true } },
-      },
-    }),
-    prisma.merchant.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, settlementBankId: true, defaultReservePercent: true },
-    }),
-    prisma.client.findMany({
-      where: { status: "ACTIVE" },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.bankAccount.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.paymentMethod.findMany({
-      where: { status: "ACTIVE" },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, requiresMerchant: true },
-    }),
-    prisma.monthClose.findMany({ where: { status: "CLOSED" }, select: { accountingMonth: true } }),
-  ]);
+  const where = {
+    ...(fromDate || toDate
+      ? { transactionDate: { ...(fromDate ? { gte: fromDate } : {}), ...(toDate ? { lte: toDate } : {}) } }
+      : {}),
+    ...(status ? { status: status as never } : {}),
+    ...(merchantId ? { merchantId: merchantId === "DIRECT" ? null : merchantId } : {}),
+    ...(clientId ? { clientId } : {}),
+    ...(paymentMethodId ? { paymentMethodId } : {}),
+  };
+
+  const [transactions, totalCount, merchants, clients, bankAccounts, paymentMethods, closedMonths] =
+    await Promise.all([
+      prisma.transaction.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+        include: {
+          client: { select: { name: true } },
+          merchant: { select: { name: true } },
+          paymentMethod: { select: { name: true } },
+          createdBy: { select: { name: true } },
+        },
+      }),
+      prisma.transaction.count({ where }),
+      prisma.merchant.findMany({
+        where: { active: true },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, settlementBankId: true, defaultReservePercent: true },
+      }),
+      prisma.client.findMany({
+        where: { status: "ACTIVE" },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
+      prisma.bankAccount.findMany({
+        where: { active: true },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
+      prisma.paymentMethod.findMany({
+        where: { status: "ACTIVE" },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, requiresMerchant: true },
+      }),
+      prisma.monthClose.findMany({ where: { status: "CLOSED" }, select: { accountingMonth: true } }),
+    ]);
 
   const merchantOptions = merchants.map((m) => ({
     id: m.id,
@@ -76,6 +127,27 @@ export default async function TransactionsPage({
     defaultReservePercent: m.defaultReservePercent.toString(),
   }));
   const closedMonthSet = new Set(closedMonths.map((m) => m.accountingMonth));
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const exportParams = {
+    from,
+    to,
+    status,
+    merchantId,
+    clientId,
+    paymentMethodId,
+  };
+
+  function pageHref(p: number) {
+    const query = new URLSearchParams();
+    if (from) query.set("from", from);
+    if (to) query.set("to", to);
+    if (status) query.set("status", status);
+    if (merchantId) query.set("merchantId", merchantId);
+    if (clientId) query.set("clientId", clientId);
+    if (paymentMethodId) query.set("paymentMethodId", paymentMethodId);
+    query.set("page", String(p));
+    return `/transactions?${query.toString()}`;
+  }
 
   return (
     <div className="space-y-4">
@@ -86,7 +158,116 @@ export default async function TransactionsPage({
         </Link>
       </div>
 
-      <DateRangeHeader from={from} to={to} reportType="transactions" />
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-md border p-3">
+        <form method="get" className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="from" className="text-xs text-muted-foreground">
+              From
+            </label>
+            <input
+              id="from"
+              name="from"
+              type="date"
+              defaultValue={from}
+              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="to" className="text-xs text-muted-foreground">
+              To
+            </label>
+            <input
+              id="to"
+              name="to"
+              type="date"
+              defaultValue={to}
+              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="status" className="text-xs text-muted-foreground">
+              Status
+            </label>
+            <select
+              id="status"
+              name="status"
+              defaultValue={status ?? ""}
+              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            >
+              <option value="">All statuses</option>
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {statusLabel(s)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="merchantId" className="text-xs text-muted-foreground">
+              Merchant
+            </label>
+            <select
+              id="merchantId"
+              name="merchantId"
+              defaultValue={merchantId ?? ""}
+              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            >
+              <option value="">All merchants</option>
+              <option value="DIRECT">Direct (no merchant)</option>
+              {merchants.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="clientId" className="text-xs text-muted-foreground">
+              Client
+            </label>
+            <select
+              id="clientId"
+              name="clientId"
+              defaultValue={clientId ?? ""}
+              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            >
+              <option value="">All clients</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="paymentMethodId" className="text-xs text-muted-foreground">
+              Method
+            </label>
+            <select
+              id="paymentMethodId"
+              name="paymentMethodId"
+              defaultValue={paymentMethodId ?? ""}
+              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            >
+              <option value="">All methods</option>
+              {paymentMethods.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button type="submit" className="h-8 rounded-lg border border-input px-3 text-sm hover:bg-muted">
+            Filter
+          </button>
+          {(from || to || status || merchantId || clientId || paymentMethodId) && (
+            <Link href="/transactions" className="h-8 px-3 text-sm text-muted-foreground underline self-center">
+              Clear
+            </Link>
+          )}
+        </form>
+        <DownloadButtons reportType="transactions" params={exportParams} />
+      </div>
 
       <BulkSettleToolbar merchants={merchantOptions} />
 
@@ -116,7 +297,7 @@ export default async function TransactionsPage({
           </TableHeader>
           <TableBody>
             {transactions.length === 0 ? (
-              <EmptyTableRow colSpan={18} message="No transactions yet." />
+              <EmptyTableRow colSpan={18} message="No transactions match these filters." />
             ) : (
               transactions.map((t) => (
                 <TableRow key={t.id}>
@@ -127,7 +308,13 @@ export default async function TransactionsPage({
                   <TableCell>{t.paymentMethod.name}</TableCell>
                   <TableCell>{t.createdBy.name}</TableCell>
                   <TableCell className="text-right">{t.grossAmount.toString()}</TableCell>
-                  <TableCell className="text-right">{t.fpRatePercent.toString()}%</TableCell>
+                  <TableCell className="text-right">
+                    {t.chargeType === "FIXED"
+                      ? "Fixed"
+                      : t.chargeType === "NONE"
+                        ? "No charge"
+                        : `${t.fpRatePercent.toString()}%`}
+                  </TableCell>
                   <TableCell className="text-right">{t.fpFee.toString()}</TableCell>
                   <TableCell className="text-right">{t.merchantFee.toString()}</TableCell>
                   <TableCell className="text-right">{t.merchantReserveAmount.toString()}</TableCell>
@@ -149,6 +336,7 @@ export default async function TransactionsPage({
                     <div className="flex flex-wrap justify-end gap-2">
                       <ReviewActions id={t.id} status={t.status} />
                       <MarkSettledAction id={t.id} status={t.status} />
+                      <HoldAction id={t.id} status={t.status} />
                       <RcvActions id={t.id} status={t.status} />
                       <EditTransactionAction
                         row={{
@@ -160,6 +348,8 @@ export default async function TransactionsPage({
                           expectedBankId: t.expectedBankId,
                           paymentMethodId: t.paymentMethodId,
                           grossAmount: t.grossAmount.toString(),
+                          chargeType: t.chargeType,
+                          fixedChargeAmount: t.fixedChargeAmount?.toString() ?? null,
                           feeBearer: t.feeBearer,
                           merchantFeeManual: t.merchantFeeManual?.toString() ?? null,
                           merchantReservePercent: t.merchantReservePercent.toString(),
@@ -187,6 +377,29 @@ export default async function TransactionsPage({
             )}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <span>
+          {totalCount === 0
+            ? "No transactions"
+            : `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, totalCount)} of ${totalCount}`}
+        </span>
+        <div className="flex items-center gap-2">
+          {page > 1 && (
+            <Link href={pageHref(page - 1)} className="rounded-lg border border-input px-3 py-1.5 hover:bg-muted">
+              Previous
+            </Link>
+          )}
+          <span>
+            Page {page} of {totalPages}
+          </span>
+          {page < totalPages && (
+            <Link href={pageHref(page + 1)} className="rounded-lg border border-input px-3 py-1.5 hover:bg-muted">
+              Next
+            </Link>
+          )}
+        </div>
       </div>
     </div>
   );

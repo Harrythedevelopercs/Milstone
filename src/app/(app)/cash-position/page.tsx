@@ -49,7 +49,12 @@ export default async function CashPositionPage() {
             Actual money across every bank, USDT wallet, and cash drawer right now.
           </p>
         </div>
-        <DownloadButtons reportType="cash-position" />
+        <div className="flex items-center gap-2">
+          <Link href="/reconciliation" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
+            Reconciliation →
+          </Link>
+          <DownloadButtons reportType="cash-position" />
+        </div>
       </div>
 
       <Card>

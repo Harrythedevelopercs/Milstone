@@ -20,7 +20,8 @@ import {
   money,
 } from "@/lib/transactions/money-math";
 import { assertMonthOpen } from "@/lib/month-close/guard";
-import { transactionSchema, rcvSchema } from "./schema";
+import { transactionSchema, rcvSchema, fulfillChargebackSchema } from "./schema";
+import { holdTransactionSchema } from "../reminders/schema";
 
 export type CreateTransactionResult =
   | { ok: true; id: string }
@@ -42,6 +43,8 @@ export async function createTransaction(input: unknown): Promise<CreateTransacti
     expectedBankId: d.expectedBankId,
     paymentMethodId: d.paymentMethodId,
     grossAmount: d.grossAmount,
+    chargeType: d.chargeType,
+    fixedChargeAmount: d.fixedChargeAmount || null,
     feeBearer: d.feeBearer,
     merchantFeeManual: d.merchantFeeManual || null,
     merchantReservePercent: d.merchantReservePercent,
@@ -152,7 +155,14 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
   const merchantFeeSource: "MANUAL" | "RULE_DEFAULT" = merchantFeeManualProvided ? "MANUAL" : "RULE_DEFAULT";
   const merchantReservePercent = isDirect ? "0" : d.merchantReservePercent;
 
-  const fpFee = calculateFpFee(gross, merchantFee, rate.ratePercent, rate.feeBasis);
+  const fpFee = calculateFpFee(
+    gross,
+    merchantFee,
+    rate.ratePercent,
+    rate.feeBasis,
+    d.chargeType,
+    d.fixedChargeAmount
+  );
   const merchantReserveAmount = calculatePercentAmount(gross, merchantReservePercent);
   const fpReserveAmount = calculatePercentAmount(gross, d.fpReservePercent);
   const expectedSettlement = calculateExpectedSettlement(gross, merchantFee, merchantReserveAmount);
@@ -197,6 +207,8 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
         fpRatePercent: rate.ratePercent,
         feeBasis: rate.feeBasis,
         fpFee: money(fpFee),
+        chargeType: d.chargeType,
+        fixedChargeAmount: d.chargeType === "FIXED" ? money(d.fixedChargeAmount || 0) : null,
         merchantFeeManual: merchantFeeManualProvided ? d.merchantFeeManual! : null,
         merchantFeeDefault: money(merchantFeeDefault),
         merchantFee: money(merchantFee),
@@ -603,6 +615,98 @@ export async function markAllSettled(input: {
   return { ok: true, count: transactions.length };
 }
 
+const HOLDABLE_STATUSES = ["APPROVED", "SETTLED", "CLIENT_PAYABLE", "PARTIALLY_PAID"] as const;
+
+// Separate from Mark Settled -- for when a settlement everyone's expecting
+// is running late. Puts the transaction on Hold and creates a Reminder that
+// remembers the exact status to restore (previousStatus), so Release Hold
+// is deterministic rather than guessed from the audit trail.
+export async function holdTransaction(id: string, input: unknown): Promise<ReviewResult> {
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const parsed = holdTransactionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  const txn = await prisma.transaction.findUnique({ where: { id } });
+  if (!txn) return { ok: false, error: "Transaction not found." };
+  if (!(HOLDABLE_STATUSES as readonly string[]).includes(txn.status)) {
+    return { ok: false, error: `Cannot hold a transaction with status ${txn.status}.` };
+  }
+  const monthError = await assertMonthOpen(txn.accountingMonth);
+  if (monthError) return { ok: false, error: monthError };
+
+  const dueDate = new Date(d.expectedSettlementDate);
+  if (Number.isNaN(dueDate.getTime())) return { ok: false, error: "Invalid expected settlement date." };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.transaction.update({ where: { id }, data: { status: "HOLD" } });
+    await tx.reminder.create({
+      data: {
+        type: "TRANSACTION",
+        title: `Delayed settlement: ${id}`,
+        note: d.note || null,
+        dueDate,
+        transactionId: id,
+        previousStatus: txn.status,
+        createdById: user.id,
+      },
+    });
+    await writeAuditLog(tx, {
+      entityType: "Transaction",
+      entityId: id,
+      transactionId: id,
+      action: "HOLD",
+      performedById: user.id,
+      beforeSnapshot: { status: txn.status },
+      afterSnapshot: { status: "HOLD", expectedSettlementDate: d.expectedSettlementDate },
+    });
+  });
+
+  revalidatePath("/transactions");
+  revalidatePath("/reminders");
+  revalidatePath("/");
+  return { ok: true };
+}
+
+export async function releaseHold(id: string): Promise<ReviewResult> {
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const txn = await prisma.transaction.findUnique({ where: { id } });
+  if (!txn) return { ok: false, error: "Transaction not found." };
+  if (txn.status !== "HOLD") return { ok: false, error: "This transaction is not on Hold." };
+
+  const reminder = await prisma.reminder.findFirst({
+    where: { transactionId: id, type: "TRANSACTION", previousStatus: { not: null }, status: "OPEN" },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!reminder || !reminder.previousStatus) {
+    return { ok: false, error: "Could not find the hold record for this transaction -- cannot safely release." };
+  }
+  const monthError = await assertMonthOpen(txn.accountingMonth);
+  if (monthError) return { ok: false, error: monthError };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.transaction.update({ where: { id }, data: { status: reminder.previousStatus! } });
+    await tx.reminder.update({
+      where: { id: reminder.id },
+      data: { status: "DONE", completedAt: new Date() },
+    });
+    await writeAuditLog(tx, {
+      entityType: "Transaction",
+      entityId: id,
+      transactionId: id,
+      action: "RELEASE_HOLD",
+      performedById: user.id,
+      beforeSnapshot: { status: "HOLD" },
+      afterSnapshot: { status: reminder.previousStatus },
+    });
+  });
+
+  revalidatePath("/transactions");
+  revalidatePath("/reminders");
+  revalidatePath("/");
+  return { ok: true };
+}
+
 export async function requestTransactionDetails(id: string, note: string): Promise<ReviewResult> {
   const user = await requireRole("OWNER", "ACCOUNTANT");
   if (!note.trim()) return { ok: false, error: "A note is required." };
@@ -798,6 +902,110 @@ export type TransactionHistoryEntry = {
   afterSnapshot: unknown;
 };
 
+// The customer paid the disputed amount back to FoundaPay directly, outside
+// the card network. This does NOT undo the chargeback (that stays on the
+// books as the real event it was -- deleteRcv is for "this was recorded in
+// error," not this) -- it posts a fresh, separate credit for the same
+// amounts the chargeback originally reversed, mirrored: the client-ledger
+// clawback comes back in full, and the settle amount lands back in
+// whichever bank the accountant says it actually landed in (not necessarily
+// the original settlement bank -- the customer may have paid a different
+// way). The RCV row flips to RESOLVED, which is what drops it out of
+// "Outstanding Chargebacks" everywhere; both the original chargeback and
+// its fulfillment stay fully visible in history.
+export async function fulfillChargeback(rcvId: string, input: unknown): Promise<ReviewResult> {
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const parsed = fulfillChargebackSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  const rcv = await prisma.refundChargebackVoid.findUnique({
+    where: { id: rcvId },
+    include: {
+      originalTransaction: {
+        include: { settlementBatch: { select: { bankAccountId: true } } },
+      },
+    },
+  });
+  if (!rcv) return { ok: false, error: "Entry not found." };
+  if (rcv.type !== "CHARGEBACK") return { ok: false, error: "Only chargebacks can be marked fulfilled." };
+  if (rcv.fulfilledAt) return { ok: false, error: "This chargeback is already marked fulfilled." };
+
+  const bankAccount = await prisma.bankAccount.findUnique({ where: { id: d.fulfillmentBankAccountId } });
+  if (!bankAccount || !bankAccount.active) return { ok: false, error: "Bank account not found or inactive." };
+
+  const fulfillDate = new Date(d.fulfillmentDate);
+  if (Number.isNaN(fulfillDate.getTime())) return { ok: false, error: "Invalid date." };
+  const accountingMonth = accountingMonthOf(fulfillDate);
+  const monthError = await assertMonthOpen(accountingMonth);
+  if (monthError) return { ok: false, error: monthError };
+
+  const txn = rcv.originalTransaction;
+  const wasSettledToBank = txn.settlementBatchId !== null || txn.settlementDate !== null;
+  const isDirectTxn = txn.merchantId === null;
+  const settleAmount = isDirectTxn ? new Decimal(txn.grossAmount) : new Decimal(txn.expectedSettlement ?? 0);
+  const clientCredit = new Decimal(txn.clientNetPayable ?? 0);
+
+  await prisma.$transaction(async (tx) => {
+    if (!clientCredit.isZero()) {
+      await tx.clientLedger.create({
+        data: {
+          clientId: txn.clientId,
+          entryDate: fulfillDate,
+          accountingMonth,
+          amount: clientCredit.toFixed(2),
+          sourceType: "RCV",
+          sourceId: rcv.id,
+          transactionId: txn.id,
+          description: `Chargeback fulfilled by customer: ${txn.id}`,
+          createdById: user.id,
+        },
+      });
+    }
+
+    if (wasSettledToBank) {
+      await postBankLedgerEntry(tx, {
+        bankAccountId: d.fulfillmentBankAccountId,
+        amount: settleAmount.toFixed(2),
+        entryDate: fulfillDate,
+        accountingMonth,
+        sourceType: "RCV",
+        sourceId: rcv.id,
+        description: `Chargeback fulfillment received for ${txn.id}`,
+        createdById: user.id,
+      });
+    }
+
+    const updated = await tx.refundChargebackVoid.update({
+      where: { id: rcvId },
+      data: {
+        status: "RESOLVED",
+        fulfilledAt: fulfillDate,
+        fulfilledById: user.id,
+        fulfillmentBankAccountId: d.fulfillmentBankAccountId,
+        notes: d.notes ? `${rcv.notes ? rcv.notes + " | " : ""}Fulfilled: ${d.notes}` : rcv.notes,
+      },
+    });
+
+    await writeAuditLog(tx, {
+      entityType: "RefundChargebackVoid",
+      entityId: rcvId,
+      transactionId: txn.id,
+      action: "FULFILL",
+      performedById: user.id,
+      beforeSnapshot: { status: rcv.status, fulfilledAt: null },
+      afterSnapshot: JSON.parse(JSON.stringify(updated)),
+    });
+  });
+
+  revalidatePath("/refunds-chargebacks-voids");
+  revalidatePath("/client-ledger");
+  revalidatePath("/master-data/banks");
+  revalidatePath("/cash-position");
+  revalidatePath("/");
+  return { ok: true };
+}
+
 // Undoes a Refund/Chargeback/Void entirely: deletes the ledger entries it
 // posted (both the client-ledger clawback and, if it reversed a settled
 // bank entry, that too) and restores the transaction to whatever status it
@@ -902,6 +1110,7 @@ export async function deleteTransaction(id: string): Promise<ReviewResult> {
     await tx.merchantLedger.updateMany({ where: { transactionId: id }, data: { transactionId: null } });
     await tx.employeePartnerLedger.updateMany({ where: { transactionId: id }, data: { transactionId: null } });
     await tx.adjustment.updateMany({ where: { relatedTransactionId: id }, data: { relatedTransactionId: null } });
+    await tx.reminder.deleteMany({ where: { transactionId: id } });
     // Detach (don't delete) prior audit history so it survives the row
     // being gone -- exactly what "log the deletion even though the row is
     // removed" requires: the content stays, only the strict per-transaction
@@ -926,6 +1135,7 @@ export async function deleteTransaction(id: string): Promise<ReviewResult> {
   revalidatePath("/master-data/banks");
   revalidatePath("/cash-position");
   revalidatePath("/settlements");
+  revalidatePath("/reminders");
   revalidatePath("/");
   return { ok: true };
 }

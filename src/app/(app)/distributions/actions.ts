@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit-log";
-import { assertMonthOpen } from "@/lib/month-close/guard";
 import type { ActionResult } from "@/lib/action-result";
 import {
   calculateEmployeePartnerRevenue,
@@ -47,9 +46,12 @@ export async function runPayroll(input: unknown): Promise<ActionResult> {
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const d = parsed.data;
 
-  const monthError = await assertMonthOpen(d.accountingMonth);
-  if (monthError) return { ok: false, error: monthError };
-
+  // Deliberately NOT gated by assertMonthOpen: these runs are optional and
+  // often happen weeks or months after the fact, sometimes against a month
+  // that's already closed -- the accountingMonth on every row it posts is
+  // explicit regardless of when it's run, and the "already run" guard below
+  // keeps it idempotent, so a closed month's already-distributed figures
+  // can't be corrupted by running it again or running it late.
   const checklist = await readChecklist(d.accountingMonth);
   if (checklist.payrollRun) {
     return { ok: false, error: `Payroll already run for ${d.accountingMonth}.` };
@@ -121,9 +123,12 @@ export async function runEmployeePartnerCommissions(input: unknown): Promise<Act
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const d = parsed.data;
 
-  const monthError = await assertMonthOpen(d.accountingMonth);
-  if (monthError) return { ok: false, error: monthError };
-
+  // Deliberately NOT gated by assertMonthOpen: these runs are optional and
+  // often happen weeks or months after the fact, sometimes against a month
+  // that's already closed -- the accountingMonth on every row it posts is
+  // explicit regardless of when it's run, and the "already run" guard below
+  // keeps it idempotent, so a closed month's already-distributed figures
+  // can't be corrupted by running it again or running it late.
   const checklist = await readChecklist(d.accountingMonth);
   if (checklist.epCommissionsRun) {
     return { ok: false, error: `Employee partner commissions already run for ${d.accountingMonth}.` };
@@ -176,9 +181,12 @@ export async function runPartnerDistribution(input: unknown): Promise<ActionResu
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const d = parsed.data;
 
-  const monthError = await assertMonthOpen(d.accountingMonth);
-  if (monthError) return { ok: false, error: monthError };
-
+  // Deliberately NOT gated by assertMonthOpen: these runs are optional and
+  // often happen weeks or months after the fact, sometimes against a month
+  // that's already closed -- the accountingMonth on every row it posts is
+  // explicit regardless of when it's run, and the "already run" guard below
+  // keeps it idempotent, so a closed month's already-distributed figures
+  // can't be corrupted by running it again or running it late.
   const checklist = await readChecklist(d.accountingMonth);
   if (checklist.partnerDistributionRun) {
     return { ok: false, error: `Partner distribution already run for ${d.accountingMonth}.` };

@@ -44,6 +44,12 @@ const FEE_BEARER_ITEMS = [
   { value: "CLIENT", label: "Client" },
 ];
 
+const CHARGE_TYPE_ITEMS = [
+  { value: "PERCENTAGE", label: "Percentage (client's rate)" },
+  { value: "FIXED", label: "Fixed amount" },
+  { value: "NONE", label: "No charge" },
+];
+
 export function TransactionForm({
   clients,
   merchants,
@@ -75,6 +81,8 @@ export function TransactionForm({
       expectedBankId: "",
       paymentMethodId: "",
       grossAmount: "",
+      chargeType: "PERCENTAGE",
+      fixedChargeAmount: "",
       feeBearer: "CLIENT",
       merchantFeeManual: "",
       merchantReservePercent: "0",
@@ -88,6 +96,7 @@ export function TransactionForm({
 
   const merchantId = form.watch("merchantId");
   const paymentMethodId = form.watch("paymentMethodId");
+  const chargeType = form.watch("chargeType");
   const selectedPaymentMethod = paymentMethods.find((m) => m.id === paymentMethodId);
   const isDirect = !!selectedPaymentMethod && !selectedPaymentMethod.requiresMerchant;
 
@@ -161,6 +170,52 @@ export function TransactionForm({
                   </FormItem>
                 )}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="chargeType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Charge type</FormLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      items={CHARGE_TYPE_ITEMS}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {CHARGE_TYPE_ITEMS.map((i) => (
+                          <SelectItem key={i.value} value={i.value}>
+                            {i.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {chargeType === "FIXED" && (
+                <FormField
+                  control={form.control}
+                  name="fixedChargeAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fixed charge amount</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="number" step="0.01" min="0" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
 
             <FormField

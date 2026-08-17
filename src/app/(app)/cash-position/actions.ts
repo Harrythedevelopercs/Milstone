@@ -52,5 +52,7 @@ export async function recordBankReconciliation(
   });
 
   revalidatePath(`/cash-position/${bankAccountId}`);
+  revalidatePath("/reconciliation");
+  revalidatePath("/month-close");
   return { ok: true };
 }
