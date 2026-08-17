@@ -125,7 +125,7 @@ export default async function RemindersPage({
                     {r.transaction && (
                       <>
                         {" — "}
-                        <Link href="/transactions" className="hover:underline">
+                        <Link href="/transactions/received" className="hover:underline">
                           {r.transaction.id}
                         </Link>{" "}
                         ({r.transaction.client.name}, {r.transaction.grossAmount.toString()})

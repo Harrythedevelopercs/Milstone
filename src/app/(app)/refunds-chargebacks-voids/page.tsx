@@ -122,7 +122,7 @@ export default async function RefundsChargebacksVoidsPage({
                   <TableCell>{format(r.eventDate, "yyyy-MM-dd")}</TableCell>
                   <TableCell>{r.accountingMonth}</TableCell>
                   <TableCell className="font-mono text-xs">
-                    <Link href="/transactions" className="hover:underline">
+                    <Link href="/transactions/received" className="hover:underline">
                       {r.originalTransactionId}
                     </Link>
                   </TableCell>

@@ -102,6 +102,7 @@ export async function createSettlementBatch(input: unknown): Promise<ActionResul
 
   revalidatePath("/settlements");
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   return { ok: true };
 }
 
@@ -265,6 +266,7 @@ export async function updateSettlementBatch(id: string, input: unknown): Promise
 
   revalidatePath("/settlements");
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   revalidatePath("/merchant-reconciliation");
   revalidatePath("/");
   return { ok: true };
@@ -318,6 +320,7 @@ export async function deleteSettlementBatch(id: string): Promise<ActionResult> {
 
   revalidatePath("/settlements");
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   revalidatePath("/merchant-reconciliation");
   revalidatePath("/");
   return { ok: true };

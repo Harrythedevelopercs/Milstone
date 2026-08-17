@@ -151,6 +151,7 @@ export async function createClientPayout(input: unknown): Promise<ActionResult> 
 
   revalidatePath("/payouts");
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   revalidatePath("/client-ledger");
   return { ok: true };
 }
@@ -228,6 +229,7 @@ export async function deleteClientPayout(id: string): Promise<ActionResult> {
 
   revalidatePath("/payouts");
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   revalidatePath("/client-ledger");
   revalidatePath("/master-data/banks");
   revalidatePath("/cash-position");

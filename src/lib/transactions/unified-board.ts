@@ -163,7 +163,7 @@ export async function getUnifiedMoneyMovements(params: {
       description: `${t.paymentMethod.name} -- ${t.client.name}${t.clientReference ? ` (${t.clientReference})` : ""}`,
       amount: new Decimal(t.grossAmount),
       status: t.status,
-      href: "/transactions",
+      href: "/transactions/received",
     });
   }
   for (const p of payouts) {

@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { prisma } from "@/lib/prisma";
+import Decimal from "decimal.js";
 import { buttonVariants } from "@/components/ui/button";
+import { ToneBadge } from "@/components/ui/tone-badge";
+import { cn } from "@/lib/utils";
+import { statusTone, type StatusTone } from "@/lib/status-tone";
 import {
   Table,
   TableBody,
@@ -11,420 +14,170 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyTableRow } from "@/components/ui/empty-table-row";
-import { TransactionStatusBadge } from "@/components/transactions/status-badge";
-import { DownloadButtons } from "@/components/exports/download-buttons";
-import { ReviewActions } from "./review-actions";
-import { MarkSettledAction } from "./settlement-actions";
-import { BulkSettleToolbar } from "./bulk-settle-toolbar";
-import { RcvActions } from "./rcv-actions";
-import { EditTransactionAction } from "./edit-transaction-action";
-import { TransactionHistoryAction } from "./transaction-history-action";
-import { DeleteTransactionAction } from "./delete-transaction-action";
-import { HoldAction } from "./hold-action";
-import { bankAccountLabel, BANK_ACCOUNT_LABEL_SELECT } from "@/lib/bank-account-label";
+import {
+  getUnifiedMoneyMovements,
+  MONEY_MOVEMENT_TYPES,
+  MONEY_MOVEMENT_TYPE_LABEL,
+  type MoneyMovementRow,
+  type MoneyMovementType,
+} from "@/lib/transactions/unified-board";
 
-const PAGE_SIZE = 100;
+const RCV_STATUSES = new Set(["OPEN", "RESOLVED", "DISPUTED"]);
+const TRACKING_STATUSES = new Set(["PENDING", "SETTLED"]);
+const TRANSACTION_STATUSES = new Set([
+  "ENTERED", "SUBMITTED", "APPROVED", "PROCESSED", "SETTLED", "CLIENT_PAYABLE",
+  "PARTIALLY_PAID", "PAID", "CLOSED", "HOLD", "RESERVE", "VOID", "REFUNDED",
+  "CHARGEBACK", "DISPUTED", "REJECTED", "DETAILS_REQUESTED",
+]);
 
-const STATUS_OPTIONS = [
-  "ENTERED",
-  "SUBMITTED",
-  "DETAILS_REQUESTED",
-  "APPROVED",
-  "PROCESSED",
-  "SETTLED",
-  "CLIENT_PAYABLE",
-  "PARTIALLY_PAID",
-  "PAID",
-  "CLOSED",
-  "HOLD",
-  "RESERVE",
-  "VOID",
-  "REFUNDED",
-  "CHARGEBACK",
-  "DISPUTED",
-  "REJECTED",
-] as const;
-
-function statusLabel(status: string) {
-  return status
-    .split("_")
-    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
-    .join(" ");
+function rowTone(row: MoneyMovementRow): StatusTone {
+  if (!row.status) return "neutral";
+  if (row.type === "RECEIVED" && TRANSACTION_STATUSES.has(row.status)) return statusTone.transaction(row.status);
+  if ((row.type === "REFUND" || row.type === "CHARGEBACK" || row.type === "VOID") && RCV_STATUSES.has(row.status)) {
+    return statusTone.rcvStatus(row.status);
+  }
+  if (TRACKING_STATUSES.has(row.status)) return row.status === "PENDING" ? "warning" : "success";
+  return "neutral";
 }
-
-type SearchParams = {
-  from?: string;
-  to?: string;
-  status?: string;
-  merchantId?: string;
-  clientId?: string;
-  paymentMethodId?: string;
-  page?: string;
-};
 
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<SearchParams>;
+  searchParams: Promise<{ from?: string; to?: string; type?: string }>;
 }) {
-  const sp = await searchParams;
-  const { from, to, status, merchantId, clientId, paymentMethodId } = sp;
+  const { from, to, type } = await searchParams;
   const fromDate = from ? new Date(from) : null;
   const toDate = to ? new Date(to) : null;
-  const page = Math.max(1, Number(sp.page) || 1);
+  const selectedType =
+    type && (MONEY_MOVEMENT_TYPES as readonly string[]).includes(type) ? (type as MoneyMovementType) : null;
 
-  const where = {
-    ...(fromDate || toDate
-      ? { transactionDate: { ...(fromDate ? { gte: fromDate } : {}), ...(toDate ? { lte: toDate } : {}) } }
-      : {}),
-    ...(status ? { status: status as never } : {}),
-    ...(merchantId ? { merchantId: merchantId === "DIRECT" ? null : merchantId } : {}),
-    ...(clientId ? { clientId } : {}),
-    ...(paymentMethodId ? { paymentMethodId } : {}),
-  };
+  const rows = await getUnifiedMoneyMovements({
+    from: fromDate,
+    to: toDate,
+    types: selectedType ? [selectedType] : undefined,
+  });
 
-  const [transactions, totalCount, merchants, clients, bankAccounts, paymentMethods, closedMonths] =
-    await Promise.all([
-      prisma.transaction.findMany({
-        where,
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * PAGE_SIZE,
-        take: PAGE_SIZE,
-        include: {
-          client: { select: { name: true } },
-          merchant: { select: { name: true } },
-          paymentMethod: { select: { name: true } },
-          createdBy: { select: { name: true } },
-          reserveHolds: { select: { direction: true } },
-        },
-      }),
-      prisma.transaction.count({ where }),
-      prisma.merchant.findMany({
-        where: { active: true },
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          settlementBankId: true,
-          defaultReservePercent: true,
-          defaultReserveDirection: true,
-        },
-      }),
-      prisma.client.findMany({
-        where: { status: "ACTIVE" },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true },
-      }),
-      prisma.bankAccount.findMany({
-        where: { active: true },
-        orderBy: { name: "asc" },
-        select: BANK_ACCOUNT_LABEL_SELECT,
-      }),
-      prisma.paymentMethod.findMany({
-        where: { status: "ACTIVE" },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true, requiresMerchant: true },
-      }),
-      prisma.monthClose.findMany({ where: { status: "CLOSED" }, select: { accountingMonth: true } }),
-    ]);
-    const bankAccountOptions = bankAccounts.map((a) => ({ id: a.id, name: bankAccountLabel(a) }));
+  const totalIn = rows.reduce((sum, r) => (r.amount.greaterThan(0) ? sum.plus(r.amount) : sum), new Decimal(0));
+  const totalOut = rows.reduce((sum, r) => (r.amount.lessThan(0) ? sum.plus(r.amount.abs()) : sum), new Decimal(0));
 
-  const merchantOptions = merchants.map((m) => ({
-    id: m.id,
-    name: m.name,
-    settlementBankId: m.settlementBankId,
-    defaultReservePercent: m.defaultReservePercent.toString(),
-    defaultReserveDirection: m.defaultReserveDirection,
-  }));
-  const closedMonthSet = new Set(closedMonths.map((m) => m.accountingMonth));
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const exportParams = {
-    from,
-    to,
-    status,
-    merchantId,
-    clientId,
-    paymentMethodId,
-  };
-
-  function pageHref(p: number) {
-    const query = new URLSearchParams();
-    if (from) query.set("from", from);
-    if (to) query.set("to", to);
-    if (status) query.set("status", status);
-    if (merchantId) query.set("merchantId", merchantId);
-    if (clientId) query.set("clientId", clientId);
-    if (paymentMethodId) query.set("paymentMethodId", paymentMethodId);
-    query.set("page", String(p));
-    return `/transactions?${query.toString()}`;
-  }
+  const baseQuery = { ...(from ? { from } : {}), ...(to ? { to } : {}) };
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Transactions</h1>
-        <div className="flex gap-2">
-          <Link href="/transactions-board" className={buttonVariants({ variant: "outline" })}>
-            All Money Movements →
-          </Link>
-          <Link href="/transactions/new" className={buttonVariants({})}>
-            New Transaction
-          </Link>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Transactions</h1>
+          <p className="text-sm text-muted-foreground">
+            Every money movement across FoundaPay -- payouts, expenses, transfers, refunds,
+            chargebacks, voids, third-party settlements, disbursements, and sales -- in one place.
+            Each row links back to its own module for full detail and actions.
+          </p>
         </div>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        This page is client-received transactions only. For payouts, expenses, transfers,
-        refunds/chargebacks, and everything else, see the{" "}
-        <Link href="/transactions-board" className="underline">
-          Transactions Board
+        <Link href="/transactions/new" className={buttonVariants({})}>
+          New Transaction
         </Link>
-        .
-      </p>
+      </div>
 
-      <div className="flex flex-wrap items-end justify-between gap-3 rounded-md border p-3">
-        <form method="get" className="flex flex-wrap items-end gap-2">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <form method="get" className="flex items-end gap-2">
+          {selectedType && <input type="hidden" name="type" value={selectedType} />}
           <div className="flex flex-col gap-1">
-            <label htmlFor="from" className="text-xs text-muted-foreground">
-              From
-            </label>
+            <label htmlFor="from" className="text-xs text-muted-foreground">From</label>
             <input
-              id="from"
-              name="from"
-              type="date"
-              defaultValue={from}
+              id="from" name="from" type="date" defaultValue={from}
               className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label htmlFor="to" className="text-xs text-muted-foreground">
-              To
-            </label>
+            <label htmlFor="to" className="text-xs text-muted-foreground">To</label>
             <input
-              id="to"
-              name="to"
-              type="date"
-              defaultValue={to}
+              id="to" name="to" type="date" defaultValue={to}
               className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
             />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="status" className="text-xs text-muted-foreground">
-              Status
-            </label>
-            <select
-              id="status"
-              name="status"
-              defaultValue={status ?? ""}
-              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
-            >
-              <option value="">All statuses</option>
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {statusLabel(s)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="merchantId" className="text-xs text-muted-foreground">
-              Merchant
-            </label>
-            <select
-              id="merchantId"
-              name="merchantId"
-              defaultValue={merchantId ?? ""}
-              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
-            >
-              <option value="">All merchants</option>
-              <option value="DIRECT">Direct (no merchant)</option>
-              {merchants.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="clientId" className="text-xs text-muted-foreground">
-              Client
-            </label>
-            <select
-              id="clientId"
-              name="clientId"
-              defaultValue={clientId ?? ""}
-              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
-            >
-              <option value="">All clients</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="paymentMethodId" className="text-xs text-muted-foreground">
-              Method
-            </label>
-            <select
-              id="paymentMethodId"
-              name="paymentMethodId"
-              defaultValue={paymentMethodId ?? ""}
-              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
-            >
-              <option value="">All methods</option>
-              {paymentMethods.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
           </div>
           <button type="submit" className="h-8 rounded-lg border border-input px-3 text-sm hover:bg-muted">
-            Filter
+            Go
           </button>
-          {(from || to || status || merchantId || clientId || paymentMethodId) && (
-            <Link href="/transactions" className="h-8 px-3 text-sm text-muted-foreground underline self-center">
-              Clear
-            </Link>
-          )}
         </form>
-        <DownloadButtons reportType="transactions" params={exportParams} />
+        <div className="flex gap-3">
+          <div className="rounded-md border bg-muted/30 px-4 py-2 text-right">
+            <p className="text-xs text-muted-foreground">In</p>
+            <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{totalIn.toFixed(2)}</p>
+          </div>
+          <div className="rounded-md border bg-muted/30 px-4 py-2 text-right">
+            <p className="text-xs text-muted-foreground">Out</p>
+            <p className="text-lg font-semibold text-red-600 dark:text-red-400">{totalOut.toFixed(2)}</p>
+          </div>
+        </div>
       </div>
 
-      <BulkSettleToolbar merchants={merchantOptions} />
+      <div className="flex flex-wrap gap-1.5">
+        <Link
+          href={{ pathname: "/transactions", query: baseQuery }}
+          className={cn(
+            "rounded-full border px-3 py-1 text-xs",
+            !selectedType ? "border-primary bg-primary/10 font-medium" : "border-input text-muted-foreground hover:bg-muted"
+          )}
+        >
+          All
+        </Link>
+        {MONEY_MOVEMENT_TYPES.map((t) => (
+          <Link
+            key={t}
+            href={{ pathname: "/transactions", query: { ...baseQuery, type: t } }}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs",
+              selectedType === t ? "border-primary bg-primary/10 font-medium" : "border-input text-muted-foreground hover:bg-muted"
+            )}
+          >
+            {MONEY_MOVEMENT_TYPE_LABEL[t]}
+          </Link>
+        ))}
+      </div>
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ID</TableHead>
               <TableHead>Date</TableHead>
-              <TableHead>Client</TableHead>
-              <TableHead>Merchant</TableHead>
-              <TableHead>Method</TableHead>
-              <TableHead>Submitted by</TableHead>
-              <TableHead className="text-right">Gross</TableHead>
-              <TableHead className="text-right">FP Rate</TableHead>
-              <TableHead className="text-right">FP Fee</TableHead>
-              <TableHead className="text-right">Merchant Fee</TableHead>
-              <TableHead className="text-right">Merchant Reserve</TableHead>
-              <TableHead className="text-right">FP Reserve</TableHead>
-              <TableHead className="text-right">Expected Settlement</TableHead>
-              <TableHead className="text-right">Client Net Payable</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Settled Date</TableHead>
-              <TableHead>Review note</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {transactions.length === 0 ? (
-              <EmptyTableRow colSpan={18} message="No transactions match these filters." />
+            {rows.length === 0 ? (
+              <EmptyTableRow colSpan={5} message="No money movements in range." />
             ) : (
-              transactions.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell className="font-mono text-xs">{t.id}</TableCell>
-                  <TableCell>{format(t.transactionDate, "yyyy-MM-dd")}</TableCell>
-                  <TableCell>{t.client.name}</TableCell>
-                  <TableCell>{t.merchant?.name ?? "Direct"}</TableCell>
-                  <TableCell>{t.paymentMethod.name}</TableCell>
-                  <TableCell>{t.createdBy.name}</TableCell>
-                  <TableCell className="text-right">{t.grossAmount.toString()}</TableCell>
-                  <TableCell className="text-right">
-                    {t.chargeType === "FIXED"
-                      ? "Fixed"
-                      : t.chargeType === "NONE"
-                        ? "No charge"
-                        : `${t.fpRatePercent.toString()}%`}
+              rows.map((r) => (
+                <TableRow key={`${r.type}-${r.id}`}>
+                  <TableCell>{format(r.date, "yyyy-MM-dd")}</TableCell>
+                  <TableCell>
+                    <Link href={r.href} className="text-sm hover:underline">
+                      {MONEY_MOVEMENT_TYPE_LABEL[r.type]}
+                    </Link>
                   </TableCell>
-                  <TableCell className="text-right">{t.fpFee.toString()}</TableCell>
-                  <TableCell className="text-right">{t.merchantFee.toString()}</TableCell>
-                  <TableCell className="text-right">{t.merchantReserveAmount.toString()}</TableCell>
-                  <TableCell className="text-right">{t.fpReserveAmount.toString()}</TableCell>
-                  <TableCell className="text-right">{t.expectedSettlement.toString()}</TableCell>
-                  <TableCell className="text-right">
-                    {t.clientNetPayable?.toString() ?? "—"}
+                  <TableCell className="max-w-md truncate text-sm text-muted-foreground" title={r.description}>
+                    {r.description}
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right",
+                      r.amount.greaterThan(0) && "text-emerald-600 dark:text-emerald-400",
+                      r.amount.lessThan(0) && "text-red-600 dark:text-red-400"
+                    )}
+                  >
+                    {r.amount.toFixed(2)}
                   </TableCell>
                   <TableCell>
-                    <TransactionStatusBadge status={t.status} />
-                  </TableCell>
-                  <TableCell>
-                    {t.settlementDate ? format(t.settlementDate, "yyyy-MM-dd") : "—"}
-                  </TableCell>
-                  <TableCell className="max-w-xs text-sm text-muted-foreground">
-                    {t.reviewNotes ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <ReviewActions id={t.id} status={t.status} />
-                      <MarkSettledAction id={t.id} status={t.status} />
-                      <HoldAction id={t.id} status={t.status} />
-                      <RcvActions id={t.id} status={t.status} />
-                      <EditTransactionAction
-                        row={{
-                          id: t.id,
-                          transactionDate: t.transactionDate.toISOString(),
-                          clientId: t.clientId,
-                          clientReference: t.clientReference,
-                          merchantId: t.merchantId,
-                          expectedBankId: t.expectedBankId,
-                          paymentMethodId: t.paymentMethodId,
-                          grossAmount: t.grossAmount.toString(),
-                          chargeType: t.chargeType,
-                          fixedChargeAmount: t.fixedChargeAmount?.toString() ?? null,
-                          feeBearer: t.feeBearer,
-                          merchantFeeManual: t.merchantFeeManual?.toString() ?? null,
-                          merchantReservePercent: t.merchantReservePercent.toString(),
-                          merchantReserveDirection:
-                            t.reserveHolds.find((h) => h.direction !== "FP_OWN")?.direction ?? "CLIENT_HELD",
-                          fpReservePercent: t.fpReservePercent.toString(),
-                          documentUrl: t.documentUrl,
-                          notes: t.notes,
-                          customerEmail: t.customerEmail,
-                          cardLast4: t.cardLast4,
-                        }}
-                        monthOpen={!closedMonthSet.has(t.accountingMonth)}
-                        clients={clients}
-                        merchants={merchantOptions}
-                        bankAccounts={bankAccountOptions}
-                        paymentMethods={paymentMethods}
-                      />
-                      <TransactionHistoryAction id={t.id} />
-                      <DeleteTransactionAction
-                        id={t.id}
-                        monthOpen={!closedMonthSet.has(t.accountingMonth)}
-                      />
-                    </div>
+                    {r.status ? <ToneBadge tone={rowTone(r)}>{r.status.replace(/_/g, " ")}</ToneBadge> : "—"}
                   </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
-      </div>
-
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          {totalCount === 0
-            ? "No transactions"
-            : `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, totalCount)} of ${totalCount}`}
-        </span>
-        <div className="flex items-center gap-2">
-          {page > 1 && (
-            <Link href={pageHref(page - 1)} className="rounded-lg border border-input px-3 py-1.5 hover:bg-muted">
-              Previous
-            </Link>
-          )}
-          <span>
-            Page {page} of {totalPages}
-          </span>
-          {page < totalPages && (
-            <Link href={pageHref(page + 1)} className="rounded-lg border border-input px-3 py-1.5 hover:bg-muted">
-              Next
-            </Link>
-          )}
-        </div>
       </div>
     </div>
   );

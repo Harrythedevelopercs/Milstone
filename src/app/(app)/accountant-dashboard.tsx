@@ -67,7 +67,7 @@ export async function AccountantDashboard({ accountingMonth }: { accountingMonth
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Pending Approvals" value={String(pendingApprovals)} href="/transactions" />
+        <StatCard label="Pending Approvals" value={String(pendingApprovals)} href="/transactions/received" />
         <StatCard
           label="Awaiting Settlement"
           value={`${new Decimal(awaitingSettlement._sum.expectedSettlement ?? 0).toFixed(2)} (${awaitingSettlement._count})`}

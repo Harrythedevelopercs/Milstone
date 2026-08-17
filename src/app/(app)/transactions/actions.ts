@@ -60,6 +60,7 @@ export async function createTransaction(input: unknown): Promise<CreateTransacti
 
   if (result.ok) {
     revalidatePath("/transactions");
+    revalidatePath("/transactions/received");
     revalidatePath(`/client-ledger/${d.clientId}`);
   }
   return result;
@@ -381,6 +382,7 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
   });
 
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   revalidatePath("/client-ledger");
   revalidatePath("/settlements");
   revalidatePath("/payouts");
@@ -451,6 +453,7 @@ export async function approveTransaction(id: string): Promise<ReviewResult> {
   });
 
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   return { ok: true };
 }
 
@@ -483,6 +486,7 @@ export async function rejectTransaction(id: string, reason: string): Promise<Rev
   });
 
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   return { ok: true };
 }
 
@@ -542,6 +546,7 @@ export async function markTransactionSettled(
   });
 
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   revalidatePath("/master-data/banks");
   revalidatePath("/cash-position");
   return { ok: true };
@@ -614,6 +619,7 @@ export async function markAllSettled(input: {
   });
 
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   revalidatePath("/master-data/banks");
   revalidatePath("/cash-position");
   return { ok: true, count: transactions.length };
@@ -667,6 +673,7 @@ export async function holdTransaction(id: string, input: unknown): Promise<Revie
   });
 
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   revalidatePath("/reminders");
   revalidatePath("/");
   return { ok: true };
@@ -706,6 +713,7 @@ export async function releaseHold(id: string): Promise<ReviewResult> {
   });
 
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   revalidatePath("/reminders");
   revalidatePath("/");
   return { ok: true };
@@ -740,6 +748,7 @@ export async function requestTransactionDetails(id: string, note: string): Promi
   });
 
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   return { ok: true };
 }
 
@@ -888,6 +897,7 @@ export async function createRcv(input: unknown): Promise<ReviewResult> {
   });
 
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   revalidatePath("/client-ledger");
   revalidatePath("/refunds-chargebacks-voids");
   revalidatePath("/master-data/banks");
@@ -1056,6 +1066,7 @@ export async function deleteRcv(rcvId: string): Promise<ReviewResult> {
   });
 
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   revalidatePath("/client-ledger");
   revalidatePath("/refunds-chargebacks-voids");
   revalidatePath("/master-data/banks");
@@ -1134,6 +1145,7 @@ export async function deleteTransaction(id: string): Promise<ReviewResult> {
   });
 
   revalidatePath("/transactions");
+  revalidatePath("/transactions/received");
   revalidatePath("/client-ledger");
   revalidatePath("/refunds-chargebacks-voids");
   revalidatePath("/master-data/banks");

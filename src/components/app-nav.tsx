@@ -75,11 +75,6 @@ export function AppNav({
             label="Transactions"
             active={isActive(pathname, "/transactions")}
           />
-          <NavLink
-            href="/transactions-board"
-            label="Transactions Board"
-            active={isActive(pathname, "/transactions-board")}
-          />
           <NavDropdown
             label="Money"
             items={MONEY_LINKS}

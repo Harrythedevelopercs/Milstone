@@ -29,7 +29,7 @@ export async function NeedsAttentionSection() {
     {
       label: "Pending approvals",
       count: pendingApprovals,
-      href: "/transactions",
+      href: "/transactions/received",
     },
     {
       label: "Outstanding chargebacks",

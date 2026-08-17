@@ -164,7 +164,7 @@ export function TransactionForm({
           if (editingId) {
             onSuccess?.();
           } else {
-            router.push("/transactions");
+            router.push("/transactions/received");
           }
           return { ok: true };
         }

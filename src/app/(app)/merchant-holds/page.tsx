@@ -171,7 +171,7 @@ export default async function MerchantHoldsPage() {
                     <div key={item.transactionId} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <Link href="/transactions" className="font-mono text-xs hover:underline">
+                          <Link href="/transactions/received" className="font-mono text-xs hover:underline">
                             {item.transactionId}
                           </Link>
                           <ToneBadge tone="danger">Held</ToneBadge>
@@ -239,7 +239,7 @@ export default async function MerchantHoldsPage() {
                       <div key={r.id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <Link href="/transactions" className="font-mono text-xs hover:underline">
+                            <Link href="/transactions/received" className="font-mono text-xs hover:underline">
                               {r.transactionId}
                             </Link>
                             <ToneBadge tone="warning">Reserved</ToneBadge>
