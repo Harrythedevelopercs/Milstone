@@ -21,7 +21,8 @@ export async function postBankLedgerEntry(
       | "EXPENSE"
       | "INTERNAL_TRANSFER"
       | "MANUAL"
-      | "ADJUSTMENT";
+      | "ADJUSTMENT"
+      | "RESERVE";
     sourceId: string;
     description: string;
     createdById: string;

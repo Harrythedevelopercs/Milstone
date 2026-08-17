@@ -87,6 +87,7 @@ export function ExpenseKindForm({
           companies={companies}
           businessUnits={businessUnits}
           bankAccounts={bankAccounts}
+          clients={clients}
         />
       )}
       {kind === "CLIENT_BEHALF" && (

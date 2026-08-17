@@ -42,6 +42,7 @@ export async function calculateBalanceSheet(asOfDate: Date = new Date()): Promis
     partnerBalances,
     bonusPoolAgg,
     thirdPartyBalances,
+    reserveHolds,
   ] = await Promise.all([
     prisma.bankAccount.findMany({
       where: { active: true },
@@ -52,6 +53,10 @@ export async function calculateBalanceSheet(asOfDate: Date = new Date()): Promis
     prisma.partnerLedger.groupBy({ by: ["partnerId"], where: dateFilter, _sum: { amount: true } }),
     prisma.bonusPoolLedger.aggregate({ where: dateFilter, _sum: { amount: true } }),
     prisma.thirdPartyLedger.groupBy({ by: ["settlementPartyId"], where: dateFilter, _sum: { amount: true } }),
+    prisma.reserveHold.findMany({
+      where: { heldSince: { lte: asOfDate } },
+      include: { actions: { where: { actionDate: { lte: asOfDate } } } },
+    }),
   ]);
 
   const cash = bankAccounts.reduce(
@@ -72,9 +77,26 @@ export async function calculateBalanceSheet(asOfDate: Date = new Date()): Promis
   const bonusPoolRemaining = new Decimal(bonusPoolAgg._sum.amount ?? 0);
   const thirdPartyPayables = sumPositive(thirdPartyBalances);
 
+  // Money a processor/merchant is holding back from FP (or FP retains
+  // itself) -- already excluded from client-side settlement math, so it's
+  // a receivable owed TO FoundaPay until released, applied to a
+  // chargeback, or written off. Never auto-reduced by a chargeback hitting
+  // the underlying transaction -- only an explicit manual action changes it.
+  let clientOwnedReserves = new Decimal(0);
+  let fpOwnedReserves = new Decimal(0);
+  for (const hold of reserveHolds) {
+    const used = hold.actions.reduce((sum, a) => sum.plus(a.amount), new Decimal(0));
+    const remaining = new Decimal(hold.originalAmount).minus(used);
+    if (remaining.lessThanOrEqualTo(0)) continue;
+    if (hold.owner === "CLIENT") clientOwnedReserves = clientOwnedReserves.plus(remaining);
+    else fpOwnedReserves = fpOwnedReserves.plus(remaining);
+  }
+
   const assetLines: BalanceSheetLine[] = [
     { label: "Cash (Banks, USDT, Cash)", amount: cash },
     { label: "Client Receivables / Advances", amount: clientReceivables },
+    { label: "Reserves Receivable (Client-Owned)", amount: clientOwnedReserves },
+    { label: "Reserves Receivable (FoundaPay-Owned)", amount: fpOwnedReserves },
   ];
   const assets = assetLines.reduce((sum, l) => sum.plus(l.amount), new Decimal(0));
 

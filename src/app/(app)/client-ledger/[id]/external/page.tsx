@@ -86,7 +86,7 @@ export default async function ClientExternalStatementPage({
             rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell>{format(r.entryDate, "yyyy-MM-dd")}</TableCell>
-                <TableCell>{clientFriendlyDescription(r.sourceType)}</TableCell>
+                <TableCell>{r.description ?? clientFriendlyDescription(r.sourceType)}</TableCell>
                 <TableCell className="text-right">{Number(r.amount).toFixed(2)}</TableCell>
                 <TableCell className="text-right font-medium">{r.runningBalance.toFixed(2)}</TableCell>
               </TableRow>
@@ -112,6 +112,10 @@ function clientFriendlyDescription(sourceType: string): string {
       return "Adjustment";
     case "RCV":
       return "Refund/Chargeback";
+    case "EXPENSE":
+      return "Expense";
+    case "INTERNAL_TRANSFER":
+      return "Internal transfer fee";
     default:
       return "Account activity";
   }

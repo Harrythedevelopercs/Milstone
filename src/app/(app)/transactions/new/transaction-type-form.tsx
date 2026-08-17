@@ -104,7 +104,7 @@ export function TransactionTypeForm({
           payableTransactions={payableTransactions}
         />
       )}
-      {type === "TRANSFER" && <TransferForm accounts={transferAccounts} />}
+      {type === "TRANSFER" && <TransferForm accounts={transferAccounts} clients={clients} />}
       {type === "EXPENSE" && (
         <ExpenseKindForm
           categories={expenseCategories}

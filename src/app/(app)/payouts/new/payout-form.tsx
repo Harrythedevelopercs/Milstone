@@ -21,6 +21,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -28,7 +29,7 @@ import {
 } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCrudAction } from "@/hooks/use-crud-action";
-import { clientPayoutSchema, type ClientPayoutFormValues } from "../schema";
+import { clientPayoutBaseSchema, type ClientPayoutFormValues } from "../schema";
 import { createClientPayout } from "../actions";
 import type { PayoutClientOption, PayableTransaction } from "@/lib/transactions/payable-data";
 
@@ -58,7 +59,7 @@ export function PayoutForm({
   const [allocationError, setAllocationError] = useState<string | null>(null);
 
   const form = useForm<Omit<ClientPayoutFormValues, "allocations">>({
-    resolver: zodResolver(clientPayoutSchema.omit({ allocations: true })),
+    resolver: zodResolver(clientPayoutBaseSchema.omit({ allocations: true })),
     defaultValues: {
       clientId: "",
       payoutDate: format(new Date(), "yyyy-MM-dd"),
@@ -68,6 +69,7 @@ export function PayoutForm({
       remittanceFee: "0",
       reference: "",
       notes: "",
+      generalAmount: "",
     },
   });
 
@@ -88,12 +90,15 @@ export function PayoutForm({
     }
   }
 
+  const generalAmountValue = form.watch("generalAmount");
   const totalAllocated = clientTransactions
     .filter((t) => selected[t.id])
     .reduce((sum, t) => sum.plus(amounts[t.id] || "0"), new Decimal(0));
+  const generalAmountDecimal = generalAmountValue ? new Decimal(generalAmountValue || "0") : new Decimal(0);
+  const grandTotal = totalAllocated.plus(generalAmountDecimal);
 
   const balanceAfter = selectedClient
-    ? new Decimal(selectedClient.currentBalance).minus(totalAllocated)
+    ? new Decimal(selectedClient.currentBalance).minus(grandTotal)
     : null;
 
   function onSubmit(values: Omit<ClientPayoutFormValues, "allocations">) {
@@ -101,8 +106,8 @@ export function PayoutForm({
       .filter((t) => selected[t.id])
       .map((t) => ({ transactionId: t.id, amount: amounts[t.id] || "0" }));
 
-    if (allocations.length === 0) {
-      setAllocationError("Select at least one transaction to pay out.");
+    if (allocations.length === 0 && !(values.generalAmount && Number(values.generalAmount) > 0)) {
+      setAllocationError("Select at least one transaction, or enter a general amount, to pay out.");
       return;
     }
     setAllocationError(null);
@@ -217,11 +222,42 @@ export function PayoutForm({
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Total allocated: {totalAllocated.toFixed(2)}
+                  Total allocated to transactions: {totalAllocated.toFixed(2)}
+                </p>
+              </div>
+            )}
+
+            <FormField
+              control={form.control}
+              name="generalAmount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>General amount (optional, not tied to a transaction)</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="number" step="0.01" min="0" placeholder="0.00" />
+                  </FormControl>
+                  <FormDescription>
+                    Can be combined with the transaction allocations above, or used entirely on
+                    its own -- e.g. a general advance or a catch-up payment.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {clientId && (
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-sm font-medium">
+                  Total this payout: {grandTotal.toFixed(2)}
                 </p>
                 {selectedClient && (
                   <p className="text-sm text-muted-foreground">
                     {selectedClient.name}&apos;s current balance: {selectedClient.currentBalance}
+                  </p>
+                )}
+                {balanceAfter && (
+                  <p className="text-sm text-muted-foreground">
+                    Balance after this payout: {balanceAfter.toFixed(2)}
                   </p>
                 )}
                 {balanceAfter && balanceAfter.lessThan(0) && (

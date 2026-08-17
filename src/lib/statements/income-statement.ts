@@ -35,6 +35,7 @@ export async function calculateIncomeStatement(accountingMonth: string): Promise
     payoutFeesFpBearsAgg,
     salariesAgg,
     expensesByCategory,
+    reserveWriteOffsAgg,
   ] = await Promise.all([
     prisma.transaction.aggregate({ where: txnWhere, _sum: { fpFee: true } }),
     prisma.productServiceSale.aggregate({
@@ -61,6 +62,10 @@ export async function calculateIncomeStatement(accountingMonth: string): Promise
     prisma.expense.groupBy({
       by: ["expenseCategoryId"],
       where: { accountingMonth },
+      _sum: { amount: true },
+    }),
+    prisma.reserveHoldAction.aggregate({
+      where: { accountingMonth, type: "WRITE_OFF" },
       _sum: { amount: true },
     }),
   ]);
@@ -90,6 +95,7 @@ export async function calculateIncomeStatement(accountingMonth: string): Promise
     // that FP's revenue itself was impaired.
     { label: "Refunds/Chargebacks (gross reversed)", amount: new Decimal(rcvGrossAgg._sum.amount ?? 0) },
     { label: "Payout Remittance Fees FP Bears", amount: new Decimal(payoutFeesFpBearsAgg._sum.remittanceFee ?? 0) },
+    { label: "Reserve Write-Offs", amount: new Decimal(reserveWriteOffsAgg._sum.amount ?? 0) },
   ];
   const cogs = cogsLines.reduce((sum, l) => sum.plus(l.amount), new Decimal(0));
 

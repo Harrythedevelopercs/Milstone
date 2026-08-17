@@ -16,6 +16,8 @@ export const internalTransferSchema = z
       .string()
       .trim()
       .refine((v) => v === "" || !Number.isNaN(Number(v)), { message: "Must be a number" }),
+    feeBearer: z.enum(["FOUNDAPAY", "CLIENT"]),
+    clientId: z.string().trim().optional().or(z.literal("")),
     usdValue: z
       .string()
       .trim()
@@ -25,6 +27,10 @@ export const internalTransferSchema = z
   .refine((d) => d.fromBankAccountId !== d.toBankAccountId, {
     message: "Source and destination must be different accounts",
     path: ["toBankAccountId"],
+  })
+  .refine((d) => d.feeBearer !== "CLIENT" || Number(d.feeAmount || 0) === 0 || !!d.clientId, {
+    message: "Pick which client bears this fee.",
+    path: ["clientId"],
   });
 
 export type InternalTransferFormValues = z.infer<typeof internalTransferSchema>;

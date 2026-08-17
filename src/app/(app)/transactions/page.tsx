@@ -155,10 +155,23 @@ export default async function TransactionsPage({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Transactions</h1>
-        <Link href="/transactions/new" className={buttonVariants({})}>
-          New Transaction
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/transactions-board" className={buttonVariants({ variant: "outline" })}>
+            All Money Movements →
+          </Link>
+          <Link href="/transactions/new" className={buttonVariants({})}>
+            New Transaction
+          </Link>
+        </div>
       </div>
+      <p className="text-sm text-muted-foreground">
+        This page is client-received transactions only. For payouts, expenses, transfers,
+        refunds/chargebacks, and everything else, see the{" "}
+        <Link href="/transactions-board" className="underline">
+          Transactions Board
+        </Link>
+        .
+      </p>
 
       <div className="flex flex-wrap items-end justify-between gap-3 rounded-md border p-3">
         <form method="get" className="flex flex-wrap items-end gap-2">

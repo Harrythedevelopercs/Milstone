@@ -27,6 +27,15 @@ enum FeeBearer {
   CLIENT
 }
 
+// Purely a manual visibility/workflow flag on Internal Transfers and
+// Expenses -- ledger posting already happens immediately at creation
+// regardless of this value. PENDING rows are highlighted until someone
+// marks them SETTLED.
+enum TrackingStatus {
+  PENDING
+  SETTLED
+}
+
 enum MerchantFeeSource {
   MANUAL
   RULE_DEFAULT
@@ -120,6 +129,7 @@ enum LedgerSourceType {
   PRODUCT_SERVICE_SALE
   MONTH_CLOSE
   MANUAL
+  RESERVE
 }
 
 enum PartnerLedgerKind {
@@ -209,6 +219,8 @@ model Client {
   payouts               ClientPayout[]
   productSales          ProductServiceSale[]
   thirdPartySettlements ThirdPartySettlement[]
+  internalTransfers     InternalTransfer[]
+  expenses              Expense[]
 
   @@map("clients")
 }
@@ -326,6 +338,7 @@ model Merchant {
   transactions      Transaction[]
   settlementBatches SettlementBatch[]
   ledgerEntries     MerchantLedger[]
+  reserveHolds      ReserveHold[]
 
   @@map("merchants")
 }
@@ -377,6 +390,7 @@ model BankAccount {
   ledgerEntries         BankLedger[]
   reconciliations       BankReconciliation[]
   rcvFulfillments       RefundChargebackVoid[]
+  reserveHoldActions    ReserveHoldAction[]
 
   @@map("bank_accounts")
 }
@@ -616,6 +630,7 @@ model Transaction {
   employeePartnerLedgerEntries EmployeePartnerLedger[]
   auditLogs                    AuditLog[]
   reminders                    Reminder[]
+  reserveHolds                 ReserveHold[]
 
   @@index([accountingMonth])
   @@index([clientId])
@@ -657,6 +672,12 @@ model ClientPayout {
   payoutMethodId  String       @map("payout_method_id")
   bankAccountId   String       @map("bank_account_id")
   amountPaid      Decimal      @map("amount_paid") @db.Decimal(18, 2)
+  // Portion of amountPaid not tied to any specific transaction -- lets one
+  // payout mix transaction allocations with a free/general amount. Total
+  // out = sum(allocations.amountAllocated) + generalAmount; if that exceeds
+  // what the client is owed, the excess is simply an advance (negative
+  // client balance), the same as an over-allocated transaction always was.
+  generalAmount   Decimal      @default(0) @map("general_amount") @db.Decimal(18, 2)
   remittanceFee   Decimal      @default(0) @map("remittance_fee") @db.Decimal(18, 2)
   feeBearer       FeeBearer    @map("fee_bearer")
   reference       String?
@@ -719,8 +740,9 @@ model RefundChargebackVoid {
   fulfilledById            String?   @map("fulfilled_by_id")
   fulfillmentBankAccountId String?   @map("fulfillment_bank_account_id")
 
-  originalTransaction    Transaction  @relation(fields: [originalTransactionId], references: [id])
-  fulfillmentBankAccount BankAccount? @relation(fields: [fulfillmentBankAccountId], references: [id])
+  originalTransaction    Transaction         @relation(fields: [originalTransactionId], references: [id])
+  fulfillmentBankAccount BankAccount?        @relation(fields: [fulfillmentBankAccountId], references: [id])
+  reserveHoldActions     ReserveHoldAction[]
 
   @@index([accountingMonth])
   @@index([originalTransactionId])
@@ -728,31 +750,42 @@ model RefundChargebackVoid {
 }
 
 model Expense {
-  id                String       @id @default(cuid())
-  expenseCategoryId String       @map("expense_category_id")
-  vendorId          String?      @map("vendor_id")
-  subscriptionId    String?      @map("subscription_id")
-  companyId         String?      @map("company_id")
-  businessUnitId    String?      @map("business_unit_id")
-  bankAccountId     String       @map("bank_account_id")
-  amount            Decimal      @db.Decimal(18, 2)
-  currency          String       @default("USD")
-  expenseDate       DateTime     @map("expense_date")
-  accountingMonth   String       @map("accounting_month")
+  id                String         @id @default(cuid())
+  expenseCategoryId String         @map("expense_category_id")
+  vendorId          String?        @map("vendor_id")
+  subscriptionId    String?        @map("subscription_id")
+  companyId         String?        @map("company_id")
+  businessUnitId    String?        @map("business_unit_id")
+  bankAccountId     String         @map("bank_account_id")
+  amount            Decimal        @db.Decimal(18, 2)
+  currency          String         @default("USD")
+  expenseDate       DateTime       @map("expense_date")
+  accountingMonth   String         @map("accounting_month")
   description       String?
-  recurring         Boolean      @default(false)
-  status            RecordStatus @default(ACTIVE)
-  documentUrl       String?      @map("document_url")
-  createdById       String       @map("created_by_id")
-  createdAt         DateTime     @default(now()) @map("created_at")
-  approvedById      String?      @map("approved_by_id")
-  approvedAt        DateTime?    @map("approved_at")
+  recurring         Boolean        @default(false)
+  status            RecordStatus   @default(ACTIVE)
+  documentUrl       String?        @map("document_url")
+  // Who bears the expense. FOUNDAPAY (default): FP's own OpEx, as today.
+  // CLIENT: requires clientId -- posts to that client's ledger/statement
+  // instead of FP's P&L.
+  feeBearer         FeeBearer      @default(FOUNDAPAY) @map("fee_bearer")
+  clientId          String?        @map("client_id")
+  // Purely a visibility/workflow flag -- money posts immediately either way
+  // (unchanged). PENDING is highlighted until manually marked SETTLED.
+  settlementStatus  TrackingStatus @default(PENDING) @map("settlement_status")
+  settledAt         DateTime?      @map("settled_at")
+  settledById       String?        @map("settled_by_id")
+  createdById       String         @map("created_by_id")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  approvedById      String?        @map("approved_by_id")
+  approvedAt        DateTime?      @map("approved_at")
 
   expenseCategory ExpenseCategory     @relation(fields: [expenseCategoryId], references: [id])
   vendor          Vendor?             @relation(fields: [vendorId], references: [id])
   subscription    VendorSubscription? @relation(fields: [subscriptionId], references: [id])
   company         Company?            @relation(fields: [companyId], references: [id])
   businessUnit    BusinessUnit?       @relation(fields: [businessUnitId], references: [id])
+  client          Client?             @relation(fields: [clientId], references: [id])
   bankAccount     BankAccount         @relation(fields: [bankAccountId], references: [id])
 
   bankLedgerEntries BankLedger[]
@@ -762,20 +795,30 @@ model Expense {
 }
 
 model InternalTransfer {
-  id                String     @id @default(cuid())
-  fromBankAccountId String     @map("from_bank_account_id")
-  toBankAccountId   String     @map("to_bank_account_id")
-  amount            Decimal    @db.Decimal(18, 2)
-  feeAmount         Decimal    @default(0) @map("fee_amount") @db.Decimal(18, 2)
-  feeBearer         FeeBearer? @map("fee_bearer")
-  transferDate      DateTime   @map("transfer_date")
-  accountingMonth   String     @map("accounting_month")
+  id                String         @id @default(cuid())
+  fromBankAccountId String         @map("from_bank_account_id")
+  toBankAccountId   String         @map("to_bank_account_id")
+  amount            Decimal        @db.Decimal(18, 2)
+  feeAmount         Decimal        @default(0) @map("fee_amount") @db.Decimal(18, 2)
+  // Who bears feeAmount. FOUNDAPAY (default): deducted from the source
+  // account as always. CLIENT: requires clientId -- the fee is billed to
+  // that client's ledger/statement instead, FoundaPay's own cost untouched.
+  feeBearer         FeeBearer?     @map("fee_bearer")
+  clientId          String?        @map("client_id")
+  transferDate      DateTime       @map("transfer_date")
+  accountingMonth   String         @map("accounting_month")
   notes             String?
-  createdById       String     @map("created_by_id")
-  createdAt         DateTime   @default(now()) @map("created_at")
+  // Purely a visibility/workflow flag -- money posts immediately either way
+  // (unchanged). PENDING is highlighted until manually marked SETTLED.
+  settlementStatus  TrackingStatus @default(PENDING) @map("settlement_status")
+  settledAt         DateTime?      @map("settled_at")
+  settledById       String?        @map("settled_by_id")
+  createdById       String         @map("created_by_id")
+  createdAt         DateTime       @default(now()) @map("created_at")
 
   fromBankAccount BankAccount @relation("TransferFrom", fields: [fromBankAccountId], references: [id])
   toBankAccount   BankAccount @relation("TransferTo", fields: [toBankAccountId], references: [id])
+  client          Client?     @relation(fields: [clientId], references: [id])
 
   bankLedgerEntries BankLedger[]
 
@@ -1175,4 +1218,72 @@ model Account {
   updatedAt   DateTime        @updatedAt @map("updated_at")
 
   @@map("chart_of_accounts")
+}
+
+// Who the eventual money belongs to once a merchant/processor reserve is
+// released: CLIENT (merchantReserveAmount -- was already excluded from the
+// client's clientNetPayable, so releasing it doesn't touch the client
+// ledger by itself, it just moves cash from "held by the merchant" to
+// "in FP's bank") vs FOUNDAPAY (fpReserveAmount -- FP's own margin-
+// protection reserve, becomes FP's own cash on release).
+enum ReserveOwner {
+  CLIENT
+  FOUNDAPAY
+}
+
+enum ReserveActionType {
+  RELEASE
+  APPLY_TO_CHARGEBACK
+  WRITE_OFF
+}
+
+// A reserve/hold is money still owed TO FoundaPay by a merchant/processor
+// (a receivable asset), not something that vanishes or gets silently
+// consumed by a chargeback. One row per transaction+owner (a transaction
+// can carry both a client-owned and a FoundaPay-owned reserve at once).
+// remainingAmount is a live-computed value (originalAmount minus the sum of
+// every action against it) rather than a stored, mutable field, so the
+// full resolution history -- partial releases, partial chargeback
+// applications, write-offs -- stays append-only and auditable.
+model ReserveHold {
+  id             String       @id @default(cuid())
+  transactionId  String       @map("transaction_id")
+  merchantId     String?      @map("merchant_id")
+  owner          ReserveOwner
+  originalAmount Decimal      @map("original_amount") @db.Decimal(18, 2)
+  heldSince      DateTime     @map("held_since")
+  createdById    String       @map("created_by_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  transaction Transaction         @relation(fields: [transactionId], references: [id])
+  merchant    Merchant?           @relation(fields: [merchantId], references: [id])
+  actions     ReserveHoldAction[]
+
+  @@index([transactionId])
+  @@index([merchantId])
+  @@map("reserve_holds")
+}
+
+model ReserveHoldAction {
+  id              String            @id @default(cuid())
+  reserveHoldId   String            @map("reserve_hold_id")
+  type            ReserveActionType
+  amount          Decimal           @db.Decimal(18, 2)
+  actionDate      DateTime          @map("action_date")
+  accountingMonth String            @map("accounting_month")
+  // Where the cash landed -- only set for RELEASE.
+  bankAccountId   String?           @map("bank_account_id")
+  // Which chargeback this offsets -- only set for APPLY_TO_CHARGEBACK.
+  rcvId           String?           @map("rcv_id")
+  notes           String?
+  performedById   String            @map("performed_by_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  reserveHold ReserveHold           @relation(fields: [reserveHoldId], references: [id])
+  bankAccount BankAccount?          @relation(fields: [bankAccountId], references: [id])
+  rcv         RefundChargebackVoid? @relation(fields: [rcvId], references: [id])
+
+  @@index([reserveHoldId])
+  @@index([accountingMonth])
+  @@map("reserve_hold_actions")
 }

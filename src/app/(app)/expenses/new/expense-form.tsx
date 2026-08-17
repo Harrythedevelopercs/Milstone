@@ -20,6 +20,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -33,6 +34,11 @@ import { createExpense } from "../actions";
 export type Option = { id: string; name: string };
 export type SubscriptionOption = { id: string; vendorId: string; name: string; amount: string };
 
+const FEE_BEARER_ITEMS = [
+  { value: "FOUNDAPAY", label: "FoundaPay" },
+  { value: "CLIENT", label: "Client" },
+];
+
 function withNone(options: Option[]) {
   return [{ value: "none", label: "None" }, ...options.map((o) => ({ value: o.id, label: o.name }))];
 }
@@ -44,6 +50,7 @@ export function ExpenseForm({
   companies,
   businessUnits,
   bankAccounts,
+  clients,
 }: {
   categories: Option[];
   vendors: Option[];
@@ -51,6 +58,7 @@ export function ExpenseForm({
   companies: Option[];
   businessUnits: Option[];
   bankAccounts: Option[];
+  clients: Option[];
 }) {
   const router = useRouter();
   const { run, isPending } = useCrudAction();
@@ -69,11 +77,14 @@ export function ExpenseForm({
       recurring: false,
       nextBillingDate: "",
       documentUrl: "",
+      feeBearer: "FOUNDAPAY",
+      clientId: "",
     },
   });
 
   const vendorId = form.watch("vendorId");
   const subscriptionId = form.watch("subscriptionId");
+  const feeBearer = form.watch("feeBearer");
   const vendorSubscriptions = useMemo(
     () => subscriptions.filter((s) => s.vendorId === vendorId),
     [subscriptions, vendorId]
@@ -308,6 +319,64 @@ export function ExpenseForm({
                 </FormItem>
               )}
             />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="feeBearer"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bearer</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange} items={FEE_BEARER_ITEMS}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="FOUNDAPAY">FoundaPay</SelectItem>
+                        <SelectItem value="CLIENT">Client</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      FoundaPay: a normal OpEx on FP&apos;s own P&amp;L, as today. Client: bills to
+                      that client&apos;s ledger/statement instead.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {feeBearer === "CLIENT" && (
+                <FormField
+                  control={form.control}
+                  name="clientId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Client bearing this expense</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        items={clients.map((c) => ({ value: c.id, label: c.name }))}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a client" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {clients.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <FormField

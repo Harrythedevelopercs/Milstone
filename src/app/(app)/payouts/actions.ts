@@ -51,7 +51,9 @@ export async function createClientPayout(input: unknown): Promise<ActionResult> 
   const accountingMonth = accountingMonthOf(payoutDate);
   const monthError = await assertMonthOpen(accountingMonth);
   if (monthError) return { ok: false, error: monthError };
-  const amountPaid = d.allocations.reduce((sum, a) => sum.plus(a.amount), new Decimal(0));
+  const allocatedAmount = d.allocations.reduce((sum, a) => sum.plus(a.amount), new Decimal(0));
+  const generalAmount = d.generalAmount ? new Decimal(d.generalAmount) : new Decimal(0);
+  const amountPaid = allocatedAmount.plus(generalAmount);
   const remittanceFee = d.remittanceFee ? new Decimal(d.remittanceFee) : new Decimal(0);
 
   await prisma.$transaction(async (tx) => {
@@ -63,6 +65,7 @@ export async function createClientPayout(input: unknown): Promise<ActionResult> 
         payoutMethodId: d.payoutMethodId,
         bankAccountId: d.bankAccountId,
         amountPaid: amountPaid.toFixed(2),
+        generalAmount: generalAmount.toFixed(2),
         remittanceFee: remittanceFee.toFixed(2),
         feeBearer: d.feeBearer,
         reference: d.reference || null,
@@ -93,6 +96,12 @@ export async function createClientPayout(input: unknown): Promise<ActionResult> 
       });
     }
 
+    const description = generalAmount.greaterThan(0)
+      ? d.allocations.length > 0
+        ? `Payout ${payout.id} (${allocatedAmount.toFixed(2)} to transactions + ${generalAmount.toFixed(2)} general)`
+        : `Payout ${payout.id} (${generalAmount.toFixed(2)} general, not tied to a transaction)`
+      : `Payout ${payout.id}`;
+
     await tx.clientLedger.create({
       data: {
         clientId: d.clientId,
@@ -102,7 +111,7 @@ export async function createClientPayout(input: unknown): Promise<ActionResult> 
         sourceType: "PAYOUT",
         sourceId: payout.id,
         clientPayoutId: payout.id,
-        description: `Payout ${payout.id}`,
+        description,
         createdById: user.id,
       },
     });

@@ -238,6 +238,38 @@ export async function createTransactionCore(
       }
     }
 
+    // A merchant reserve is money the processor is holding back from what
+    // it owes FoundaPay -- already excluded from expectedSettlement/
+    // clientNetPayable above -- so it's a receivable, not a liability. It's
+    // "client-owned" in the sense that it was never counted as FoundaPay's
+    // to keep; releasing it is tracked separately from paying the client.
+    // An FP reserve is FoundaPay's own retained cushion. Neither is ever
+    // auto-consumed by a chargeback -- that's a manual action on the hold.
+    if (Number(merchantReserveAmount) > 0) {
+      await tx.reserveHold.create({
+        data: {
+          transactionId: row.id,
+          merchantId: input.merchantId,
+          owner: "CLIENT",
+          originalAmount: money(merchantReserveAmount),
+          heldSince: row.transactionDate,
+          createdById: input.createdById,
+        },
+      });
+    }
+    if (Number(fpReserveAmount) > 0) {
+      await tx.reserveHold.create({
+        data: {
+          transactionId: row.id,
+          merchantId: input.merchantId,
+          owner: "FOUNDAPAY",
+          originalAmount: money(fpReserveAmount),
+          heldSince: row.transactionDate,
+          createdById: input.createdById,
+        },
+      });
+    }
+
     return row;
   });
 

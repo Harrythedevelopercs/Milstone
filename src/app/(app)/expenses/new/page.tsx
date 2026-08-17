@@ -3,7 +3,7 @@ import { bankAccountLabel, BANK_ACCOUNT_LABEL_SELECT } from "@/lib/bank-account-
 import { ExpenseForm } from "./expense-form";
 
 export default async function NewExpensePage() {
-  const [categories, vendors, subscriptions, companies, businessUnits, bankAccounts] =
+  const [categories, vendors, subscriptions, companies, businessUnits, bankAccounts, clients] =
     await Promise.all([
       prisma.expenseCategory.findMany({
         where: { status: "ACTIVE" },
@@ -34,6 +34,11 @@ export default async function NewExpensePage() {
         orderBy: { name: "asc" },
         select: BANK_ACCOUNT_LABEL_SELECT,
       }),
+      prisma.client.findMany({
+        where: { status: "ACTIVE" },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
     ]);
 
   return (
@@ -45,6 +50,7 @@ export default async function NewExpensePage() {
         companies={companies}
         businessUnits={businessUnits}
         bankAccounts={bankAccounts.map((a) => ({ id: a.id, name: bankAccountLabel(a) }))}
+        clients={clients}
       />
     </div>
   );

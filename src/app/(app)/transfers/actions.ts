@@ -10,21 +10,28 @@ import { assertMonthOpen } from "@/lib/month-close/guard";
 import type { ActionResult } from "@/lib/action-result";
 import { internalTransferSchema } from "./schema";
 
-// No P&L impact -- money just moves from one FoundaPay account to another.
-// Only a real transfer fee (if any) is a genuine cost, always borne by
-// FoundaPay since both sides of the transfer are FoundaPay's own money.
+// No P&L impact from the transfer itself -- money just moves from one
+// FoundaPay account to another. The fee (if any) is the only real cost, and
+// who bears it is now a choice: FOUNDAPAY (default, deducted from the
+// source account, as before) or CLIENT (the source account only moves the
+// transfer amount itself; the fee instead posts as a charge on that
+// client's ledger/statement).
 export async function createInternalTransfer(input: unknown): Promise<ActionResult> {
   const user = await requireRole("OWNER", "ACCOUNTANT");
   const parsed = internalTransferSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const d = parsed.data;
 
-  const [fromAccount, toAccount] = await Promise.all([
+  const [fromAccount, toAccount, client] = await Promise.all([
     prisma.bankAccount.findUnique({ where: { id: d.fromBankAccountId } }),
     prisma.bankAccount.findUnique({ where: { id: d.toBankAccountId } }),
+    d.clientId ? prisma.client.findUnique({ where: { id: d.clientId } }) : Promise.resolve(null),
   ]);
   if (!fromAccount || !fromAccount.active) return { ok: false, error: "Source account not found or inactive." };
   if (!toAccount || !toAccount.active) return { ok: false, error: "Destination account not found or inactive." };
+  if (d.clientId && (!client || client.status !== "ACTIVE")) {
+    return { ok: false, error: "Client not found or inactive." };
+  }
 
   const transferDate = new Date(d.transferDate);
   if (Number.isNaN(transferDate.getTime())) return { ok: false, error: "Invalid transfer date." };
@@ -35,6 +42,7 @@ export async function createInternalTransfer(input: unknown): Promise<ActionResu
   const amount = new Decimal(d.amount);
   const fee = d.feeAmount ? new Decimal(d.feeAmount) : new Decimal(0);
   const usdValue = d.usdValue ? new Decimal(d.usdValue) : amount;
+  const clientBearsFee = d.feeBearer === "CLIENT" && fee.greaterThan(0);
 
   await prisma.$transaction(async (tx) => {
     const transfer = await tx.internalTransfer.create({
@@ -43,6 +51,8 @@ export async function createInternalTransfer(input: unknown): Promise<ActionResu
         toBankAccountId: d.toBankAccountId,
         amount: amount.toFixed(2),
         feeAmount: fee.toFixed(2),
+        feeBearer: d.feeBearer,
+        clientId: d.clientId || null,
         transferDate,
         accountingMonth,
         notes: d.notes || null,
@@ -50,17 +60,26 @@ export async function createInternalTransfer(input: unknown): Promise<ActionResu
       },
     });
 
+    // FoundaPay-borne fee is deducted from the source account alongside the
+    // transfer amount, exactly as before. Client-borne fee leaves the
+    // source account untouched by the fee -- it's billed to the client
+    // instead, below.
+    const fromLegAmount = clientBearsFee ? amount : amount.plus(fee);
+    const fromLegUsd = clientBearsFee ? usdValue : usdValue.plus(fee);
+
     await tx.bankLedger.create({
       data: {
         bankAccountId: d.fromBankAccountId,
         entryDate: transferDate,
         accountingMonth,
-        amount: amount.plus(fee).negated().toFixed(2),
-        usdValue: usdValue.plus(fee).negated().toFixed(2),
+        amount: fromLegAmount.negated().toFixed(2),
+        usdValue: fromLegUsd.negated().toFixed(2),
         sourceType: "INTERNAL_TRANSFER",
         sourceId: transfer.id,
         internalTransferId: transfer.id,
-        description: `Transfer to ${toAccount.name}${fee.greaterThan(0) ? ` (incl. ${fee.toFixed(2)} fee)` : ""}`,
+        description:
+          d.notes ||
+          `Transfer to ${toAccount.name}${!clientBearsFee && fee.greaterThan(0) ? ` (incl. ${fee.toFixed(2)} fee)` : ""}`,
         createdById: user.id,
       },
     });
@@ -75,10 +94,25 @@ export async function createInternalTransfer(input: unknown): Promise<ActionResu
         sourceType: "INTERNAL_TRANSFER",
         sourceId: transfer.id,
         internalTransferId: transfer.id,
-        description: `Transfer from ${fromAccount.name}`,
+        description: d.notes || `Transfer from ${fromAccount.name}`,
         createdById: user.id,
       },
     });
+
+    if (clientBearsFee && client) {
+      await tx.clientLedger.create({
+        data: {
+          clientId: client.id,
+          entryDate: transferDate,
+          accountingMonth,
+          amount: fee.negated().toFixed(2),
+          sourceType: "INTERNAL_TRANSFER",
+          sourceId: transfer.id,
+          description: d.notes || `Transfer fee (${fromAccount.name} -> ${toAccount.name})`,
+          createdById: user.id,
+        },
+      });
+    }
 
     await writeAuditLog(tx, {
       entityType: "InternalTransfer",
@@ -91,5 +125,24 @@ export async function createInternalTransfer(input: unknown): Promise<ActionResu
 
   revalidatePath("/transfers");
   revalidatePath("/cash-position");
+  if (d.clientId) revalidatePath(`/client-ledger/${d.clientId}`);
+  return { ok: true };
+}
+
+export async function markInternalTransferSettled(id: string): Promise<ActionResult> {
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const transfer = await prisma.internalTransfer.update({
+    where: { id },
+    data: { settlementStatus: "SETTLED", settledAt: new Date(), settledById: user.id },
+  });
+  await writeAuditLog(prisma, {
+    entityType: "InternalTransfer",
+    entityId: id,
+    action: "UPDATE",
+    performedById: user.id,
+    afterSnapshot: JSON.parse(JSON.stringify(transfer)),
+    notes: "Marked settled",
+  });
+  revalidatePath("/transfers");
   return { ok: true };
 }

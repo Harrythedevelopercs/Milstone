@@ -18,6 +18,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -29,8 +30,14 @@ import { internalTransferSchema, type InternalTransferFormValues } from "../sche
 import { createInternalTransfer } from "../actions";
 
 export type Option = { id: string; name: string; currency: string };
+export type ClientOption = { id: string; name: string };
 
-export function TransferForm({ accounts }: { accounts: Option[] }) {
+const FEE_BEARER_ITEMS = [
+  { value: "FOUNDAPAY", label: "FoundaPay" },
+  { value: "CLIENT", label: "Client" },
+];
+
+export function TransferForm({ accounts, clients }: { accounts: Option[]; clients: ClientOption[] }) {
   const router = useRouter();
   const { run, isPending } = useCrudAction();
   const form = useForm<InternalTransferFormValues>({
@@ -41,6 +48,8 @@ export function TransferForm({ accounts }: { accounts: Option[] }) {
       transferDate: format(new Date(), "yyyy-MM-dd"),
       amount: "",
       feeAmount: "0",
+      feeBearer: "FOUNDAPAY",
+      clientId: "",
       usdValue: "",
       notes: "",
     },
@@ -49,6 +58,9 @@ export function TransferForm({ accounts }: { accounts: Option[] }) {
   const toId = form.watch("toBankAccountId");
   const toAccount = accounts.find((a) => a.id === toId);
   const showUsdValue = toAccount && toAccount.currency !== "USD";
+  const feeBearer = form.watch("feeBearer");
+  const feeAmount = form.watch("feeAmount");
+  const showClientPicker = feeBearer === "CLIENT" && Number(feeAmount || 0) > 0;
 
   function onSubmit(values: InternalTransferFormValues) {
     run(
@@ -161,19 +173,78 @@ export function TransferForm({ accounts }: { accounts: Option[] }) {
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="feeAmount"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Transfer fee (deducted from source, FoundaPay&apos;s own cost)</FormLabel>
-                  <FormControl>
-                    <Input {...field} type="number" step="0.01" min="0" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="feeAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Transfer fee</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="number" step="0.01" min="0" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="feeBearer"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fee bearer</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange} items={FEE_BEARER_ITEMS}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="FOUNDAPAY">FoundaPay</SelectItem>
+                        <SelectItem value="CLIENT">Client</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      FoundaPay: deducted from the source account, FP&apos;s own cost. Client: the
+                      source account only moves the transfer amount -- the fee bills to the
+                      client below instead.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {showClientPicker && (
+              <FormField
+                control={form.control}
+                name="clientId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Client bearing the fee</FormLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      items={clients.map((c) => ({ value: c.id, label: c.name }))}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a client" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {clients.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             {showUsdValue && (
               <FormField
@@ -196,10 +267,14 @@ export function TransferForm({ accounts }: { accounts: Option[] }) {
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel>Description</FormLabel>
                   <FormControl>
-                    <Textarea {...field} rows={2} />
+                    <Textarea {...field} rows={2} placeholder="What this transfer is for" />
                   </FormControl>
+                  <FormDescription>
+                    Flows through to the client statement/ledger if a client bears the fee, and
+                    to the unified Transactions board either way.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
