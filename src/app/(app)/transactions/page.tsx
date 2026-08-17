@@ -21,6 +21,7 @@ import { EditTransactionAction } from "./edit-transaction-action";
 import { TransactionHistoryAction } from "./transaction-history-action";
 import { DeleteTransactionAction } from "./delete-transaction-action";
 import { HoldAction } from "./hold-action";
+import { bankAccountLabel, BANK_ACCOUNT_LABEL_SELECT } from "@/lib/bank-account-label";
 
 const PAGE_SIZE = 100;
 
@@ -110,7 +111,7 @@ export default async function TransactionsPage({
       prisma.bankAccount.findMany({
         where: { active: true },
         orderBy: { name: "asc" },
-        select: { id: true, name: true },
+        select: BANK_ACCOUNT_LABEL_SELECT,
       }),
       prisma.paymentMethod.findMany({
         where: { status: "ACTIVE" },
@@ -119,6 +120,7 @@ export default async function TransactionsPage({
       }),
       prisma.monthClose.findMany({ where: { status: "CLOSED" }, select: { accountingMonth: true } }),
     ]);
+    const bankAccountOptions = bankAccounts.map((a) => ({ id: a.id, name: bankAccountLabel(a) }));
 
   const merchantOptions = merchants.map((m) => ({
     id: m.id,
@@ -362,7 +364,7 @@ export default async function TransactionsPage({
                         monthOpen={!closedMonthSet.has(t.accountingMonth)}
                         clients={clients}
                         merchants={merchantOptions}
-                        bankAccounts={bankAccounts}
+                        bankAccounts={bankAccountOptions}
                         paymentMethods={paymentMethods}
                       />
                       <TransactionHistoryAction id={t.id} />

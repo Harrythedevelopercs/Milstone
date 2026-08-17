@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getPayoutFormData } from "@/lib/transactions/payable-data";
+import { bankAccountLabel, BANK_ACCOUNT_LABEL_SELECT } from "@/lib/bank-account-label";
 import { TransactionTypeForm } from "./transaction-type-form";
 
 export default async function NewTransactionPage() {
@@ -30,7 +31,7 @@ export default async function NewTransactionPage() {
     prisma.bankAccount.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, currency: true },
+      select: { ...BANK_ACCOUNT_LABEL_SELECT, currency: true },
     }),
     prisma.paymentMethod.findMany({
       where: { status: "ACTIVE" },
@@ -78,17 +79,22 @@ export default async function NewTransactionPage() {
     settlementBankId: m.settlementBankId,
     defaultReservePercent: m.defaultReservePercent.toString(),
   }));
+  const bankAccountOptions = bankAccounts.map((a) => ({
+    id: a.id,
+    name: bankAccountLabel(a),
+    currency: a.currency,
+  }));
 
   return (
     <div className="mx-auto max-w-2xl">
       <TransactionTypeForm
         clients={clients}
         merchants={merchantOptions}
-        bankAccounts={bankAccounts}
+        bankAccounts={bankAccountOptions}
         paymentMethods={paymentMethods}
         payoutMethods={payoutMethods}
         payableTransactions={payableTransactions}
-        transferAccounts={bankAccounts}
+        transferAccounts={bankAccountOptions}
         expenseCategories={expenseCategories}
         vendors={vendors}
         subscriptions={subscriptions.map((s) => ({ ...s, amount: s.amount.toString() }))}

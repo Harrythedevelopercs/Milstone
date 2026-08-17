@@ -33,16 +33,45 @@ export default async function CashFlowPage({
 }) {
   const { month } = await searchParams;
   const accountingMonth = currentAccountingMonthFrom(month, (d) => format(d, "yyyy-MM"));
+  const monthStart = new Date(`${accountingMonth}-01T00:00:00.000Z`);
+  const monthEnd = new Date(monthStart);
+  monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
 
-  const grouped = await prisma.bankLedger.groupBy({
-    by: ["sourceType"],
-    where: { accountingMonth },
-    _sum: { usdValue: true },
-  });
+  const [grouped, accounts] = await Promise.all([
+    prisma.bankLedger.groupBy({
+      by: ["sourceType"],
+      where: { accountingMonth },
+      _sum: { usdValue: true },
+    }),
+    prisma.bankAccount.findMany({
+      where: { active: true },
+      select: {
+        openingBalance: true,
+        ledgerEntries: { select: { entryDate: true, usdValue: true } },
+      },
+    }),
+  ]);
 
   const inflows = grouped.filter((g) => Number(g._sum.usdValue ?? 0) > 0);
   const outflows = grouped.filter((g) => Number(g._sum.usdValue ?? 0) < 0);
   const netChange = grouped.reduce((sum, g) => sum.plus(g._sum.usdValue ?? 0), new Decimal(0));
+
+  // Reconciles directly to Cash Position: beginning is every account's
+  // opening balance plus every entry before this month; ending adds this
+  // month's entries too -- the same BankLedger rows Cash Position sums.
+  let beginningCash = new Decimal(0);
+  let endingCash = new Decimal(0);
+  for (const a of accounts) {
+    let bal = new Decimal(a.openingBalance);
+    for (const e of a.ledgerEntries) {
+      if (e.entryDate < monthStart) bal = bal.plus(e.usdValue);
+    }
+    beginningCash = beginningCash.plus(bal);
+    for (const e of a.ledgerEntries) {
+      if (e.entryDate >= monthStart && e.entryDate < monthEnd) bal = bal.plus(e.usdValue);
+    }
+    endingCash = endingCash.plus(bal);
+  }
 
   return (
     <div className="space-y-4">
@@ -52,18 +81,32 @@ export default async function CashFlowPage({
         downloadReportType="cash-flow"
       />
 
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-sm text-muted-foreground">Net cash change this month</p>
-          <p
-            className={`text-2xl font-semibold ${
-              netChange.isNegative() ? "text-destructive" : "text-emerald-600"
-            }`}
-          >
-            {netChange.toFixed(2)}
-          </p>
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Beginning cash</p>
+            <p className="text-2xl font-semibold">{beginningCash.toFixed(2)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Net cash change this month</p>
+            <p
+              className={`text-2xl font-semibold ${
+                netChange.isNegative() ? "text-destructive" : "text-emerald-600"
+              }`}
+            >
+              {netChange.toFixed(2)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">Ending cash (reconciles to Cash Position)</p>
+            <p className="text-2xl font-semibold">{endingCash.toFixed(2)}</p>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-md border">

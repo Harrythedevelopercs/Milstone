@@ -20,6 +20,8 @@ import { fetchClientLedgerInternal } from "./reports/client-ledger-internal";
 import { fetchBankLedger } from "./reports/bank-ledger";
 import { fetchMerchantLedger } from "./reports/merchant-ledger";
 import { fetchThirdPartyLedger } from "./reports/third-party-ledger";
+import { fetchIncomeStatement } from "./reports/income-statement";
+import { fetchBalanceSheet } from "./reports/balance-sheet";
 
 export type ReportFetcher = (params: URLSearchParams) => Promise<ExportPayload>;
 
@@ -45,4 +47,6 @@ export const REPORT_REGISTRY: Record<string, ReportFetcher> = {
   "bank-ledger": fetchBankLedger,
   "merchant-ledger": fetchMerchantLedger,
   "third-party-ledger": fetchThirdPartyLedger,
+  "income-statement": fetchIncomeStatement,
+  "balance-sheet": fetchBalanceSheet,
 };

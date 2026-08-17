@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/prisma";
+import { bankAccountLabel } from "@/lib/bank-account-label";
 import type { ExportPayload } from "../types";
 
 const TYPE_LABEL: Record<string, string> = { BANK: "Bank", USDT: "USDT", CASH: "Cash" };
@@ -9,14 +10,17 @@ export async function fetchCashPosition(): Promise<ExportPayload> {
   const accounts = await prisma.bankAccount.findMany({
     where: { active: true },
     orderBy: [{ accountType: "asc" }, { name: "asc" }],
-    include: { ledgerEntries: { select: { amount: true, usdValue: true } } },
+    include: {
+      company: { select: { name: true } },
+      ledgerEntries: { select: { amount: true, usdValue: true } },
+    },
   });
 
   const rows = accounts.map((a) => {
     const ledgerNative = a.ledgerEntries.reduce((sum, e) => sum.plus(e.amount), new Decimal(0));
     const ledgerUsd = a.ledgerEntries.reduce((sum, e) => sum.plus(e.usdValue), new Decimal(0));
     return {
-      account: a.name,
+      account: bankAccountLabel(a),
       type: TYPE_LABEL[a.accountType] ?? a.accountType,
       currency: a.currency,
       nativeBalance: new Decimal(a.openingBalance).plus(ledgerNative).toNumber(),

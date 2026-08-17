@@ -16,6 +16,7 @@ import {
   Settings,
   UserCircle,
   Boxes,
+  BookOpen,
 } from "lucide-react";
 import { requireRole } from "@/lib/rbac";
 
@@ -49,6 +50,7 @@ const NAV_SECTIONS = [
       { href: "/master-data/expense-categories", label: "Expense Categories", icon: Receipt },
       { href: "/master-data/products-services", label: "Products & Services", icon: Package },
       { href: "/master-data/business-units", label: "Business Units", icon: Building },
+      { href: "/master-data/chart-of-accounts", label: "Chart of Accounts", icon: BookOpen },
     ],
   },
   {

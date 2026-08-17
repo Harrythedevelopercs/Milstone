@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { writeAuditLog } from "@/lib/audit-log";
 import {
   isPrismaError,
   PRISMA_UNIQUE_VIOLATION,
@@ -23,12 +24,19 @@ function toData(parsed: ReturnType<typeof employeeSchema.safeParse>) {
 }
 
 export async function createEmployee(input: unknown): Promise<ActionResult> {
-  await requireRole("OWNER", "ACCOUNTANT");
+  const user = await requireRole("OWNER", "ACCOUNTANT");
   const parsed = employeeSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   try {
-    await prisma.employee.create({ data: toData(parsed) });
+    const employee = await prisma.employee.create({ data: toData(parsed) });
+    await writeAuditLog(prisma, {
+      entityType: "Employee",
+      entityId: employee.id,
+      action: "CREATE",
+      performedById: user.id,
+      afterSnapshot: JSON.parse(JSON.stringify(employee)),
+    });
   } catch (error) {
     if (isPrismaError(error, PRISMA_UNIQUE_VIOLATION)) {
       return { ok: false, error: "That user is already linked to another employee." };
@@ -40,12 +48,21 @@ export async function createEmployee(input: unknown): Promise<ActionResult> {
 }
 
 export async function updateEmployee(id: string, input: unknown): Promise<ActionResult> {
-  await requireRole("OWNER", "ACCOUNTANT");
+  const user = await requireRole("OWNER", "ACCOUNTANT");
   const parsed = employeeSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
+  const before = await prisma.employee.findUnique({ where: { id } });
   try {
-    await prisma.employee.update({ where: { id }, data: toData(parsed) });
+    const employee = await prisma.employee.update({ where: { id }, data: toData(parsed) });
+    await writeAuditLog(prisma, {
+      entityType: "Employee",
+      entityId: id,
+      action: "UPDATE",
+      performedById: user.id,
+      beforeSnapshot: before ? JSON.parse(JSON.stringify(before)) : undefined,
+      afterSnapshot: JSON.parse(JSON.stringify(employee)),
+    });
   } catch (error) {
     if (isPrismaError(error, PRISMA_UNIQUE_VIOLATION)) {
       return { ok: false, error: "That user is already linked to another employee." };
@@ -60,8 +77,16 @@ export async function setEmployeeStatus(
   id: string,
   status: "ACTIVE" | "INACTIVE"
 ): Promise<ActionResult> {
-  await requireRole("OWNER", "ACCOUNTANT");
-  await prisma.employee.update({ where: { id }, data: { status } });
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const employee = await prisma.employee.update({ where: { id }, data: { status } });
+  await writeAuditLog(prisma, {
+    entityType: "Employee",
+    entityId: id,
+    action: "UPDATE",
+    performedById: user.id,
+    afterSnapshot: JSON.parse(JSON.stringify(employee)),
+    notes: status === "ACTIVE" ? "Activated" : "Deactivated",
+  });
   revalidatePath("/master-data/employees");
   return { ok: true };
 }

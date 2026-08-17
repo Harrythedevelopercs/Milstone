@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import Decimal from "decimal.js";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { bankAccountLabel } from "@/lib/bank-account-label";
 import { ReconciliationRow } from "./reconciliation-row";
 
 export default async function ReconciliationPage({
@@ -20,6 +21,7 @@ export default async function ReconciliationPage({
     where: { active: true },
     orderBy: [{ accountType: "asc" }, { name: "asc" }],
     include: {
+      company: { select: { name: true } },
       ledgerEntries: { select: { amount: true } },
       reconciliations: {
         where: { asOfDate: { gte: monthStart, lt: monthEnd } },
@@ -36,7 +38,7 @@ export default async function ReconciliationPage({
     const thisMonthRecon = a.reconciliations[0] ?? null;
     return {
       id: a.id,
-      name: a.name,
+      name: bankAccountLabel(a),
       accountType: a.accountType,
       bookBalance,
       reconciledThisMonth: !!thisMonthRecon,

@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import { bankAccountLabel, BANK_ACCOUNT_LABEL_SELECT } from "@/lib/bank-account-label";
 import {
   calculateEmployeePartnerRevenue,
   calculateMonthExpenses,
@@ -28,7 +29,7 @@ export default async function DistributionsPage({
       prisma.bankAccount.findMany({
         where: { active: true },
         orderBy: { name: "asc" },
-        select: { id: true, name: true },
+        select: BANK_ACCOUNT_LABEL_SELECT,
       }),
       prisma.employee.findMany({ where: { status: "ACTIVE", salary: { gt: 0 } } }),
       prisma.employee.findMany({ where: { isEmployeePartner: true, status: "ACTIVE" } }),
@@ -89,7 +90,7 @@ export default async function DistributionsPage({
       <div className="grid gap-4 md:grid-cols-3">
         <RunPayrollPanel
           accountingMonth={accountingMonth}
-          bankAccounts={bankAccounts}
+          bankAccounts={bankAccounts.map((a) => ({ id: a.id, name: bankAccountLabel(a) }))}
           alreadyRun={!!checklist.payrollRun}
           totalPreview={salariesTotal.toFixed(2)}
         />

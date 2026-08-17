@@ -934,18 +934,29 @@ model BankLedger {
   @@map("bank_ledger")
 }
 
+enum EmployeePartnerLedgerKind {
+  // The accrued commission itself -- a liability the moment it posts, until
+  // a PAYMENT (or several partial ones) reduces it back to zero.
+  COMMISSION
+  PAYMENT
+  ADJUSTMENT
+}
+
 model EmployeePartnerLedger {
-  id              String           @id @default(cuid())
-  employeeId      String           @map("employee_id")
-  entryDate       DateTime         @map("entry_date")
-  accountingMonth String           @map("accounting_month")
-  amount          Decimal          @db.Decimal(18, 2)
-  sourceType      LedgerSourceType @map("source_type")
-  sourceId        String           @map("source_id")
-  transactionId   String?          @map("transaction_id")
+  id              String                    @id @default(cuid())
+  employeeId      String                    @map("employee_id")
+  entryDate       DateTime                  @map("entry_date")
+  accountingMonth String                    @map("accounting_month")
+  amount          Decimal                   @db.Decimal(18, 2)
+  // Defaults to COMMISSION so every pre-existing row (all of which really
+  // were commission accruals) backfills correctly with no data migration.
+  kind            EmployeePartnerLedgerKind @default(COMMISSION)
+  sourceType      LedgerSourceType          @map("source_type")
+  sourceId        String                    @map("source_id")
+  transactionId   String?                   @map("transaction_id")
   description     String?
-  createdById     String           @map("created_by_id")
-  createdAt       DateTime         @default(now()) @map("created_at")
+  createdById     String                    @map("created_by_id")
+  createdAt       DateTime                  @default(now()) @map("created_at")
 
   employee    Employee     @relation(fields: [employeeId], references: [id])
   transaction Transaction? @relation(fields: [transactionId], references: [id])
@@ -1135,4 +1146,33 @@ model Reminder {
   @@index([status])
   @@index([transactionId])
   @@map("reminders")
+}
+
+enum AccountCategory {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  COGS
+  EXPENSE
+}
+
+// Editable reference catalog the standard financial statements (Income
+// Statement, Balance Sheet) are organized by and labeled with. This is
+// deliberately NOT a full double-entry rewrite of the posting engine --
+// every existing subledger (Client/Bank/Merchant/etc.) keeps posting
+// exactly as it does today, so none of the existing money math changes.
+// The statements map their computed lines to these accounts for standard,
+// consistent presentation.
+model Account {
+  id          String          @id @default(cuid())
+  code        String          @unique
+  name        String
+  category    AccountCategory
+  description String?
+  active      Boolean         @default(true)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  @@map("chart_of_accounts")
 }

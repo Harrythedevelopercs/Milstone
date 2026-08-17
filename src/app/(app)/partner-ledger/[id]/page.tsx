@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateRangeHeader } from "@/components/exports/date-range-header";
+import { bankAccountLabel } from "@/lib/bank-account-label";
 import {
   Table,
   TableBody,
@@ -39,7 +40,7 @@ export default async function PartnerLedgerDetailPage({
     prisma.bankAccount.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      include: { company: { select: { name: true } } },
     }),
   ]);
   if (!partner) notFound();
@@ -53,8 +54,13 @@ export default async function PartnerLedgerDetailPage({
   // compute it over full history and only display rows inside the range.
   const rows: Array<(typeof entries)[number] & { runningBalance: number }> = [];
   let running = 0;
+  let accrued = 0;
+  let paid = 0;
   for (const e of entries) {
-    running += Number(e.amount);
+    const amt = Number(e.amount);
+    running += amt;
+    if (e.kind === "PROFIT_ENTITLEMENT") accrued += amt;
+    if (e.kind === "DRAWING") paid += Math.abs(amt);
     const inRange = (!fromDate || e.entryDate >= fromDate) && (!toDate || e.entryDate <= toDate);
     if (inRange) rows.push({ ...e, runningBalance: running });
   }
@@ -75,14 +81,29 @@ export default async function PartnerLedgerDetailPage({
             <span>
               {partner.name} ({partner.profitSharePercent.toString()}%)
             </span>
-            <DrawingPanel partnerId={id} bankAccounts={bankAccounts} />
+            <DrawingPanel
+              partnerId={id}
+              bankAccounts={bankAccounts.map((a) => ({ id: a.id, name: bankAccountLabel(a) }))}
+            />
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">Accumulated equity balance</p>
-          <p className={`text-2xl font-semibold ${balance < 0 ? "text-destructive" : ""}`}>
-            {balance.toFixed(2)}
-          </p>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Accrued (all-time)</p>
+              <p className="text-xl font-semibold">{accrued.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Paid / Drawn (all-time)</p>
+              <p className="text-xl font-semibold">{paid.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Owed now (liability)</p>
+              <p className={`text-xl font-semibold ${balance > 0 ? "text-amber-600 dark:text-amber-400" : balance < 0 ? "text-destructive" : ""}`}>
+                {balance.toFixed(2)}
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

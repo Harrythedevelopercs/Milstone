@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { bankAccountLabel, BANK_ACCOUNT_LABEL_SELECT } from "@/lib/bank-account-label";
 import { ThirdPartySettlementForm } from "./settlement-form";
 
 export default async function NewThirdPartySettlementPage() {
@@ -16,7 +17,7 @@ export default async function NewThirdPartySettlementPage() {
     prisma.bankAccount.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: BANK_ACCOUNT_LABEL_SELECT,
     }),
   ]);
 
@@ -25,7 +26,7 @@ export default async function NewThirdPartySettlementPage() {
       <ThirdPartySettlementForm
         settlementParties={settlementParties}
         clients={clients}
-        bankAccounts={bankAccounts}
+        bankAccounts={bankAccounts.map((a) => ({ id: a.id, name: bankAccountLabel(a) }))}
       />
     </div>
   );

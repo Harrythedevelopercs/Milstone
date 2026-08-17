@@ -16,7 +16,24 @@ export default async function StatementsPage() {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Profit & Loss</CardTitle>
+            <CardTitle>Standard Financial Statements</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <Link href="/statements/income-statement" className="block hover:underline">
+              Income Statement (P&amp;L)
+            </Link>
+            <Link href="/statements/balance-sheet" className="block hover:underline">
+              Balance Sheet
+            </Link>
+            <Link href="/statements/cash-flow" className="block hover:underline">
+              Cash Flow
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Profit & Loss (legacy views)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <Link href="/statements/consolidated-pnl" className="block hover:underline">
@@ -27,9 +44,6 @@ export default async function StatementsPage() {
             </Link>
             <Link href="/statements/business-unit-pnl" className="block hover:underline">
               Business Unit P&L
-            </Link>
-            <Link href="/statements/cash-flow" className="block hover:underline">
-              Cash Flow
             </Link>
           </CardContent>
         </Card>

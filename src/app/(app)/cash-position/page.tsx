@@ -13,6 +13,7 @@ import {
 import { EmptyTableRow } from "@/components/ui/empty-table-row";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DownloadButtons } from "@/components/exports/download-buttons";
+import { bankAccountLabel } from "@/lib/bank-account-label";
 
 const TYPE_LABEL: Record<string, string> = { BANK: "Bank", USDT: "USDT", CASH: "Cash" };
 
@@ -21,6 +22,7 @@ export default async function CashPositionPage() {
     where: { active: true },
     orderBy: [{ accountType: "asc" }, { name: "asc" }],
     include: {
+      company: { select: { name: true } },
       ledgerEntries: { select: { amount: true, usdValue: true } },
     },
   });
@@ -30,7 +32,7 @@ export default async function CashPositionPage() {
     const ledgerUsd = a.ledgerEntries.reduce((sum, e) => sum.plus(e.usdValue), new Decimal(0));
     return {
       id: a.id,
-      name: a.name,
+      name: bankAccountLabel(a),
       accountType: a.accountType,
       currency: a.currency,
       nativeBalance: new Decimal(a.openingBalance).plus(ledgerNative),

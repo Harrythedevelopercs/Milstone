@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { writeAuditLog } from "@/lib/audit-log";
 import type { ActionResult } from "@/lib/action-result";
 import { merchantSchema, merchantFeeRuleSchema } from "./schema";
 
@@ -24,28 +25,52 @@ function toData(parsed: ReturnType<typeof merchantSchema.safeParse>) {
 }
 
 export async function createMerchant(input: unknown): Promise<ActionResult> {
-  await requireRole("OWNER", "ACCOUNTANT");
+  const user = await requireRole("OWNER", "ACCOUNTANT");
   const parsed = merchantSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  await prisma.merchant.create({ data: toData(parsed) });
+  const merchant = await prisma.merchant.create({ data: toData(parsed) });
+  await writeAuditLog(prisma, {
+    entityType: "Merchant",
+    entityId: merchant.id,
+    action: "CREATE",
+    performedById: user.id,
+    afterSnapshot: JSON.parse(JSON.stringify(merchant)),
+  });
   revalidatePath("/master-data/merchants");
   return { ok: true };
 }
 
 export async function updateMerchant(id: string, input: unknown): Promise<ActionResult> {
-  await requireRole("OWNER", "ACCOUNTANT");
+  const user = await requireRole("OWNER", "ACCOUNTANT");
   const parsed = merchantSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
-  await prisma.merchant.update({ where: { id }, data: toData(parsed) });
+  const before = await prisma.merchant.findUnique({ where: { id } });
+  const merchant = await prisma.merchant.update({ where: { id }, data: toData(parsed) });
+  await writeAuditLog(prisma, {
+    entityType: "Merchant",
+    entityId: id,
+    action: "UPDATE",
+    performedById: user.id,
+    beforeSnapshot: before ? JSON.parse(JSON.stringify(before)) : undefined,
+    afterSnapshot: JSON.parse(JSON.stringify(merchant)),
+  });
   revalidatePath("/master-data/merchants");
   return { ok: true };
 }
 
 export async function setMerchantActive(id: string, active: boolean): Promise<ActionResult> {
-  await requireRole("OWNER", "ACCOUNTANT");
-  await prisma.merchant.update({ where: { id }, data: { active } });
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const merchant = await prisma.merchant.update({ where: { id }, data: { active } });
+  await writeAuditLog(prisma, {
+    entityType: "Merchant",
+    entityId: id,
+    action: "UPDATE",
+    performedById: user.id,
+    afterSnapshot: JSON.parse(JSON.stringify(merchant)),
+    notes: active ? "Activated" : "Deactivated",
+  });
   revalidatePath("/master-data/merchants");
   return { ok: true };
 }
@@ -54,7 +79,7 @@ export async function upsertMerchantFeeRule(
   merchantId: string,
   input: unknown
 ): Promise<ActionResult> {
-  await requireRole("OWNER", "ACCOUNTANT");
+  const user = await requireRole("OWNER", "ACCOUNTANT");
   const parsed = merchantFeeRuleSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
@@ -67,12 +92,19 @@ export async function upsertMerchantFeeRule(
     monthlyFee: d.monthlyFee || "0",
   };
 
-  await prisma.merchantFeeRule.upsert({
+  const rule = await prisma.merchantFeeRule.upsert({
     where: {
       merchantId_paymentMethodId: { merchantId, paymentMethodId: d.paymentMethodId },
     },
     update: data,
     create: { merchantId, paymentMethodId: d.paymentMethodId, ...data },
+  });
+  await writeAuditLog(prisma, {
+    entityType: "MerchantFeeRule",
+    entityId: rule.id,
+    action: "UPDATE",
+    performedById: user.id,
+    afterSnapshot: JSON.parse(JSON.stringify(rule)),
   });
 
   revalidatePath("/master-data/merchants");

@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import { bankAccountLabel } from "@/lib/bank-account-label";
 import type { ExportPayload } from "../types";
 import { dateRangeLabel, num, parseDateRange, requireId } from "./helpers";
 
@@ -24,7 +25,10 @@ export async function fetchBankLedger(params: URLSearchParams): Promise<ExportPa
   const id = requireId(params);
   const range = parseDateRange(params);
 
-  const account = await prisma.bankAccount.findUnique({ where: { id } });
+  const account = await prisma.bankAccount.findUnique({
+    where: { id },
+    include: { company: { select: { name: true } } },
+  });
   if (!account) throw new Error("Account not found.");
 
   const entries = await prisma.bankLedger.findMany({
@@ -50,7 +54,7 @@ export async function fetchBankLedger(params: URLSearchParams): Promise<ExportPa
   }
 
   return {
-    title: `${account.name} — Ledger`,
+    title: `${bankAccountLabel(account)} — Ledger`,
     filterRange: dateRangeLabel(range),
     summary: [{ label: "Current balance", value: running.toFixed(2) }],
     table: {

@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/rbac";
+import { bankAccountLabel, BANK_ACCOUNT_LABEL_SELECT } from "@/lib/bank-account-label";
 import {
   Table,
   TableBody,
@@ -30,7 +31,7 @@ export default async function SubmitPage() {
     prisma.bankAccount.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: BANK_ACCOUNT_LABEL_SELECT,
     }),
     prisma.paymentMethod.findMany({
       where: { status: "ACTIVE" },
@@ -53,7 +54,7 @@ export default async function SubmitPage() {
       <SubmitForm
         clients={clients}
         merchants={merchants}
-        bankAccounts={bankAccounts}
+        bankAccounts={bankAccounts.map((a) => ({ id: a.id, name: bankAccountLabel(a) }))}
         paymentMethods={paymentMethods}
       />
 

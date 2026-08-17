@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { format, subDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { writeAuditLog } from "@/lib/audit-log";
 import {
   isPrismaError,
   PRISMA_UNIQUE_VIOLATION,
@@ -12,12 +13,12 @@ import {
 import { clientSchema, clientRateBatchSchema } from "./schema";
 
 export async function createClient(input: unknown): Promise<ActionResult> {
-  await requireRole("OWNER", "ACCOUNTANT");
+  const user = await requireRole("OWNER", "ACCOUNTANT");
   const parsed = clientSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   try {
-    await prisma.client.create({
+    const client = await prisma.client.create({
       data: {
         name: parsed.data.name,
         code: parsed.data.code || null,
@@ -25,6 +26,13 @@ export async function createClient(input: unknown): Promise<ActionResult> {
         phone: parsed.data.phone || null,
         notes: parsed.data.notes || null,
       },
+    });
+    await writeAuditLog(prisma, {
+      entityType: "Client",
+      entityId: client.id,
+      action: "CREATE",
+      performedById: user.id,
+      afterSnapshot: JSON.parse(JSON.stringify(client)),
     });
   } catch (error) {
     if (isPrismaError(error, PRISMA_UNIQUE_VIOLATION)) {
@@ -37,12 +45,13 @@ export async function createClient(input: unknown): Promise<ActionResult> {
 }
 
 export async function updateClient(id: string, input: unknown): Promise<ActionResult> {
-  await requireRole("OWNER", "ACCOUNTANT");
+  const user = await requireRole("OWNER", "ACCOUNTANT");
   const parsed = clientSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
+  const before = await prisma.client.findUnique({ where: { id } });
   try {
-    await prisma.client.update({
+    const client = await prisma.client.update({
       where: { id },
       data: {
         name: parsed.data.name,
@@ -51,6 +60,14 @@ export async function updateClient(id: string, input: unknown): Promise<ActionRe
         phone: parsed.data.phone || null,
         notes: parsed.data.notes || null,
       },
+    });
+    await writeAuditLog(prisma, {
+      entityType: "Client",
+      entityId: id,
+      action: "UPDATE",
+      performedById: user.id,
+      beforeSnapshot: before ? JSON.parse(JSON.stringify(before)) : undefined,
+      afterSnapshot: JSON.parse(JSON.stringify(client)),
     });
   } catch (error) {
     if (isPrismaError(error, PRISMA_UNIQUE_VIOLATION)) {
@@ -66,8 +83,16 @@ export async function setClientStatus(
   id: string,
   status: "ACTIVE" | "INACTIVE"
 ): Promise<ActionResult> {
-  await requireRole("OWNER", "ACCOUNTANT");
-  await prisma.client.update({ where: { id }, data: { status } });
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const client = await prisma.client.update({ where: { id }, data: { status } });
+  await writeAuditLog(prisma, {
+    entityType: "Client",
+    entityId: id,
+    action: "UPDATE",
+    performedById: user.id,
+    afterSnapshot: JSON.parse(JSON.stringify(client)),
+    notes: status === "ACTIVE" ? "Activated" : "Deactivated",
+  });
   revalidatePath("/master-data/clients");
   return { ok: true };
 }

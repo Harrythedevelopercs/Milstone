@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { bankAccountLabel } from "@/lib/bank-account-label";
 import { MerchantsClient } from "./merchants-client";
 
 export default async function MerchantsPage() {
@@ -24,7 +25,13 @@ export default async function MerchantsPage() {
       prisma.bankAccount.findMany({
         where: { active: true },
         orderBy: { name: "asc" },
-        select: { id: true, name: true, companyId: true, company: { select: { name: true } } },
+        select: {
+          id: true,
+          name: true,
+          bankName: true,
+          companyId: true,
+          company: { select: { name: true } },
+        },
       }),
       prisma.paymentMethod.findMany({
         where: { status: "ACTIVE" },
@@ -64,7 +71,7 @@ export default async function MerchantsPage() {
       rows={rows}
       companies={companies}
       businessUnits={businessUnits}
-      bankAccounts={bankAccounts}
+      bankAccounts={bankAccounts.map((b) => ({ ...b, name: bankAccountLabel(b) }))}
       paymentMethods={paymentMethods}
     />
   );

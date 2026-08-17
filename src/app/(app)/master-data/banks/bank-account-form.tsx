@@ -14,6 +14,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -76,6 +77,12 @@ export function BankAccountForm({
               <FormControl>
                 <Input {...field} autoFocus placeholder="e.g. Chase Operating" />
               </FormControl>
+              <FormDescription>
+                An internal nickname for this specific account (e.g. &quot;Operating&quot;,
+                &quot;Payroll&quot;). Everywhere in the app this account is shown as
+                &quot;Company - Bank Name&quot;, so it doesn&apos;t need to repeat the company or
+                bank -- just what distinguishes this account from the company&apos;s other ones.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -111,8 +118,12 @@ export function BankAccountForm({
             <FormItem>
               <FormLabel>Bank name</FormLabel>
               <FormControl>
-                <Input {...field} />
+                <Input {...field} placeholder="e.g. Chase, Bank of America, Mercury, Wise, PNC, USDT Wallet, Cash" />
               </FormControl>
+              <FormDescription>
+                The real institution. This is what makes two accounts under the same company
+                distinguishable everywhere they&apos;re listed.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -186,6 +197,9 @@ export function BankAccountForm({
               <FormControl>
                 <Input {...field} placeholder="****1234" />
               </FormControl>
+              <FormDescription>
+                Optional. Last 4 digits or a masked reference only -- never the full account number.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

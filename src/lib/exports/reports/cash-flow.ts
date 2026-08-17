@@ -23,14 +23,40 @@ export async function fetchCashFlow(params: URLSearchParams): Promise<ExportPayl
   const accountingMonth = currentAccountingMonthFrom(params.get("month") ?? undefined, (d) =>
     format(d, "yyyy-MM")
   );
+  const monthStart = new Date(`${accountingMonth}-01T00:00:00.000Z`);
+  const monthEnd = new Date(monthStart);
+  monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
 
-  const grouped = await prisma.bankLedger.groupBy({
-    by: ["sourceType"],
-    where: { accountingMonth },
-    _sum: { usdValue: true },
-  });
+  const [grouped, accounts] = await Promise.all([
+    prisma.bankLedger.groupBy({
+      by: ["sourceType"],
+      where: { accountingMonth },
+      _sum: { usdValue: true },
+    }),
+    prisma.bankAccount.findMany({
+      where: { active: true },
+      select: {
+        openingBalance: true,
+        ledgerEntries: { select: { entryDate: true, usdValue: true } },
+      },
+    }),
+  ]);
 
   const netChange = grouped.reduce((sum, g) => sum.plus(g._sum.usdValue ?? 0), new Decimal(0));
+
+  let beginningCash = new Decimal(0);
+  let endingCash = new Decimal(0);
+  for (const a of accounts) {
+    let bal = new Decimal(a.openingBalance);
+    for (const e of a.ledgerEntries) {
+      if (e.entryDate < monthStart) bal = bal.plus(e.usdValue);
+    }
+    beginningCash = beginningCash.plus(bal);
+    for (const e of a.ledgerEntries) {
+      if (e.entryDate >= monthStart && e.entryDate < monthEnd) bal = bal.plus(e.usdValue);
+    }
+    endingCash = endingCash.plus(bal);
+  }
 
   const rows = grouped
     .slice()
@@ -44,7 +70,11 @@ export async function fetchCashFlow(params: URLSearchParams): Promise<ExportPayl
   return {
     title: "Cash Flow",
     filterRange: `Month: ${accountingMonth}`,
-    summary: [{ label: "Net cash change this month", value: netChange.toFixed(2) }],
+    summary: [
+      { label: "Beginning cash", value: beginningCash.toFixed(2) },
+      { label: "Net cash change this month", value: netChange.toFixed(2) },
+      { label: "Ending cash (reconciles to Cash Position)", value: endingCash.toFixed(2) },
+    ],
     table: {
       columns: [
         { key: "source", header: "Source", type: "text" },

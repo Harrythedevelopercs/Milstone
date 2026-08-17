@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getPayoutFormData } from "@/lib/transactions/payable-data";
+import { bankAccountLabel, BANK_ACCOUNT_LABEL_SELECT } from "@/lib/bank-account-label";
 import { PayoutForm } from "./payout-form";
 
 export default async function NewPayoutPage() {
@@ -13,7 +14,7 @@ export default async function NewPayoutPage() {
     prisma.bankAccount.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: BANK_ACCOUNT_LABEL_SELECT,
     }),
   ]);
 
@@ -22,7 +23,7 @@ export default async function NewPayoutPage() {
       <PayoutForm
         clients={clients}
         payoutMethods={payoutMethods}
-        bankAccounts={bankAccounts}
+        bankAccounts={bankAccounts.map((a) => ({ id: a.id, name: bankAccountLabel(a) }))}
         payableTransactions={payableTransactions}
       />
     </div>

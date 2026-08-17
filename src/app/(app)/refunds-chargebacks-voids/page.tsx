@@ -16,6 +16,7 @@ import { EmptyTableRow } from "@/components/ui/empty-table-row";
 import { DateRangeHeader } from "@/components/exports/date-range-header";
 import { DeleteRcvAction } from "../transactions/delete-rcv-action";
 import { FulfillChargebackAction } from "../transactions/fulfill-chargeback-action";
+import { bankAccountLabel, BANK_ACCOUNT_LABEL_SELECT } from "@/lib/bank-account-label";
 
 export default async function RefundsChargebacksVoidsPage({
   searchParams,
@@ -52,9 +53,10 @@ export default async function RefundsChargebacksVoidsPage({
     prisma.bankAccount.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: BANK_ACCOUNT_LABEL_SELECT,
     }),
   ]);
+  const bankAccountOptions = bankAccounts.map((a) => ({ id: a.id, name: bankAccountLabel(a) }));
   const creatorName = new Map(creators.map((c) => [c.id, c.name]));
   const closedMonthSet = new Set(closedMonths.map((m) => m.accountingMonth));
 
@@ -151,7 +153,7 @@ export default async function RefundsChargebacksVoidsPage({
                       {r.type === "CHARGEBACK" &&
                         !r.fulfilledAt &&
                         (r.status === "OPEN" || r.status === "DISPUTED") && (
-                          <FulfillChargebackAction rcvId={r.id} bankAccounts={bankAccounts} />
+                          <FulfillChargebackAction rcvId={r.id} bankAccounts={bankAccountOptions} />
                         )}
                       <DeleteRcvAction id={r.id} monthOpen={!closedMonthSet.has(r.accountingMonth)} />
                     </div>

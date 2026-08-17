@@ -16,18 +16,24 @@ export async function fetchEmployeePartnerLedger(params: URLSearchParams): Promi
   });
 
   let running = 0;
-  const rows: { date: string; month: string; description: string; amount: number; runningBalance: number }[] =
+  let accrued = 0;
+  let paid = 0;
+  const rows: { date: string; month: string; kind: string; description: string; amount: number; runningBalance: number }[] =
     [];
   for (const e of allEntries) {
-    running += num(e.amount);
+    const amt = num(e.amount);
+    running += amt;
+    if (e.kind === "COMMISSION") accrued += amt;
+    if (e.kind === "PAYMENT") paid += Math.abs(amt);
     const inRange =
       (!range.from || e.entryDate >= range.from) && (!range.to || e.entryDate <= range.to);
     if (inRange) {
       rows.push({
         date: format(e.entryDate, "yyyy-MM-dd"),
         month: e.accountingMonth,
+        kind: e.kind,
         description: e.description ?? "—",
-        amount: num(e.amount),
+        amount: amt,
         runningBalance: running,
       });
     }
@@ -36,11 +42,16 @@ export async function fetchEmployeePartnerLedger(params: URLSearchParams): Promi
   return {
     title: `${employee.name} — Employee Partner Ledger`,
     filterRange: dateRangeLabel(range),
-    summary: [{ label: "Commission balance owed", value: running.toFixed(2) }],
+    summary: [
+      { label: "Accrued (all-time)", value: accrued.toFixed(2) },
+      { label: "Paid (all-time)", value: paid.toFixed(2) },
+      { label: "Owed now (liability)", value: running.toFixed(2) },
+    ],
     table: {
       columns: [
         { key: "date", header: "Date", type: "date" },
         { key: "month", header: "Month", type: "text" },
+        { key: "kind", header: "Kind", type: "text" },
         { key: "description", header: "Description", type: "text" },
         { key: "amount", header: "Amount", type: "number" },
         { key: "runningBalance", header: "Running Balance", type: "number" },

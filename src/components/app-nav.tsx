@@ -106,6 +106,11 @@ export function AppNav({
             active={isActive(pathname, "/month-close")}
           />
           <NavLink
+            href="/activity-log"
+            label="Activity Log"
+            active={isActive(pathname, "/activity-log")}
+          />
+          <NavLink
             href="/master-data"
             label="Master Data"
             active={isActive(pathname, "/master-data")}

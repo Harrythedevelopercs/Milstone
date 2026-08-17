@@ -153,6 +153,7 @@ export async function runEmployeePartnerCommissions(input: unknown): Promise<Act
           entryDate: runDate,
           accountingMonth: d.accountingMonth,
           amount: commission.toFixed(2),
+          kind: "COMMISSION",
           sourceType: "MONTH_CLOSE",
           sourceId: d.accountingMonth,
           description: `${EMPLOYEE_PARTNER_COMMISSION_PERCENT}% of ${revenue.toFixed(2)} eligible revenue for ${d.accountingMonth}`,

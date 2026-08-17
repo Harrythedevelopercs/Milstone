@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/rbac";
+import { writeAuditLog } from "@/lib/audit-log";
 import {
   isPrismaError,
   PRISMA_UNIQUE_VIOLATION,
@@ -11,17 +12,24 @@ import {
 import { partnerSchema } from "./schema";
 
 export async function createPartner(input: unknown): Promise<ActionResult> {
-  await requireRole("OWNER", "ACCOUNTANT");
+  const user = await requireRole("OWNER", "ACCOUNTANT");
   const parsed = partnerSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
   try {
-    await prisma.partner.create({
+    const partner = await prisma.partner.create({
       data: {
         name: parsed.data.name,
         profitSharePercent: parsed.data.profitSharePercent,
         userId: parsed.data.userId || null,
       },
+    });
+    await writeAuditLog(prisma, {
+      entityType: "Partner",
+      entityId: partner.id,
+      action: "CREATE",
+      performedById: user.id,
+      afterSnapshot: JSON.parse(JSON.stringify(partner)),
     });
   } catch (error) {
     if (isPrismaError(error, PRISMA_UNIQUE_VIOLATION)) {
@@ -34,18 +42,27 @@ export async function createPartner(input: unknown): Promise<ActionResult> {
 }
 
 export async function updatePartner(id: string, input: unknown): Promise<ActionResult> {
-  await requireRole("OWNER", "ACCOUNTANT");
+  const user = await requireRole("OWNER", "ACCOUNTANT");
   const parsed = partnerSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
 
+  const before = await prisma.partner.findUnique({ where: { id } });
   try {
-    await prisma.partner.update({
+    const partner = await prisma.partner.update({
       where: { id },
       data: {
         name: parsed.data.name,
         profitSharePercent: parsed.data.profitSharePercent,
         userId: parsed.data.userId || null,
       },
+    });
+    await writeAuditLog(prisma, {
+      entityType: "Partner",
+      entityId: id,
+      action: "UPDATE",
+      performedById: user.id,
+      beforeSnapshot: before ? JSON.parse(JSON.stringify(before)) : undefined,
+      afterSnapshot: JSON.parse(JSON.stringify(partner)),
     });
   } catch (error) {
     if (isPrismaError(error, PRISMA_UNIQUE_VIOLATION)) {
@@ -61,8 +78,16 @@ export async function setPartnerStatus(
   id: string,
   status: "ACTIVE" | "INACTIVE"
 ): Promise<ActionResult> {
-  await requireRole("OWNER", "ACCOUNTANT");
-  await prisma.partner.update({ where: { id }, data: { status } });
+  const user = await requireRole("OWNER", "ACCOUNTANT");
+  const partner = await prisma.partner.update({ where: { id }, data: { status } });
+  await writeAuditLog(prisma, {
+    entityType: "Partner",
+    entityId: id,
+    action: "UPDATE",
+    performedById: user.id,
+    afterSnapshot: JSON.parse(JSON.stringify(partner)),
+    notes: status === "ACTIVE" ? "Activated" : "Deactivated",
+  });
   revalidatePath("/master-data/partners");
   return { ok: true };
 }
