@@ -26,6 +26,7 @@ export async function submitTransaction(input: unknown): Promise<SubmitTransacti
 
   let expectedBankId: string;
   let merchantReservePercent = "0";
+  let merchantReserveDirection: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN" = "CLIENT_HELD";
   if (isDirect) {
     if (!d.bankAccountId) return { ok: false, error: "Bank account is required for a direct-to-bank method." };
     const bankAccount = await prisma.bankAccount.findUnique({ where: { id: d.bankAccountId } });
@@ -33,12 +34,21 @@ export async function submitTransaction(input: unknown): Promise<SubmitTransacti
     expectedBankId = bankAccount.id;
   } else {
     if (!d.merchantId) return { ok: false, error: "Merchant is required." };
-    const merchant = await prisma.merchant.findUnique({ where: { id: d.merchantId } });
+    const [merchant, client] = await Promise.all([
+      prisma.merchant.findUnique({ where: { id: d.merchantId } }),
+      prisma.client.findUnique({ where: { id: d.clientId } }),
+    ]);
     if (!merchant || !merchant.active) {
       return { ok: false, error: "Merchant not found or inactive." };
     }
     expectedBankId = merchant.settlementBankId;
-    merchantReservePercent = merchant.defaultReservePercent.toString();
+    // Economics stay invisible to the submitter -- resolve client-default >
+    // merchant-default silently, same precedence as the accountant's form.
+    merchantReservePercent =
+      client?.defaultReserveType === "PERCENT" && client.defaultReserveValue
+        ? client.defaultReserveValue.toString()
+        : merchant.defaultReservePercent.toString();
+    merchantReserveDirection = client?.defaultReserveDirection ?? merchant.defaultReserveDirection;
   }
 
   const result = await createTransactionCore({
@@ -52,6 +62,7 @@ export async function submitTransaction(input: unknown): Promise<SubmitTransacti
     feeBearer: "CLIENT",
     merchantFeeManual: null,
     merchantReservePercent,
+    merchantReserveDirection,
     fpReservePercent: "0",
     documentUrl: d.documentUrl || null,
     notes: d.notes || null,

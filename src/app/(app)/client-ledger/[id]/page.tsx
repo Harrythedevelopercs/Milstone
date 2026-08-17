@@ -44,10 +44,28 @@ export default async function ClientLedgerDetailPage({
   const client = await prisma.client.findUnique({ where: { id } });
   if (!client) notFound();
 
-  const entries = await prisma.clientLedger.findMany({
-    where: { clientId: id },
-    orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
-  });
+  const [entries, clientHeldReserves] = await Promise.all([
+    prisma.clientLedger.findMany({
+      where: { clientId: id },
+      orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
+    }),
+    prisma.reserveHold.findMany({
+      where: { direction: "CLIENT_HELD", transaction: { clientId: id } },
+      include: { actions: true },
+      orderBy: { heldSince: "asc" },
+    }),
+  ]);
+
+  // Client-held reserves are the client's own money, just not yet released
+  // -- they never post to the ledger/running-balance (already excluded from
+  // clientNetPayable at transaction time), so this is purely informational.
+  const heldForClient = clientHeldReserves
+    .map((h) => {
+      const used = h.actions.reduce((sum, a) => sum + Number(a.amount), 0);
+      return { transactionId: h.transactionId, remaining: Number(h.originalAmount) - used, since: h.heldSince };
+    })
+    .filter((h) => h.remaining > 0);
+  const heldForClientTotal = heldForClient.reduce((sum, h) => sum + h.remaining, 0);
 
   const allRows = entries.reduce<Array<(typeof entries)[number] & { runningBalance: number }>>(
     (acc, e) => {
@@ -99,6 +117,29 @@ export default async function ClientLedgerDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {heldForClient.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Held on your behalf</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              A merchant/processor is holding this money back from this client&apos;s own funds --
+              still theirs, not yet released. Not included in the balance above; released via the
+              Merchant Hold/Reserve report.
+            </p>
+            <p className="mt-2 text-xl font-semibold">{heldForClientTotal.toFixed(2)}</p>
+            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+              {heldForClient.map((h) => (
+                <li key={h.transactionId}>
+                  {h.transactionId}: {h.remaining.toFixed(2)} (held since {format(h.since, "yyyy-MM-dd")})
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="rounded-md border">
         <Table>

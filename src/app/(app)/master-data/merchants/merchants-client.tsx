@@ -24,6 +24,7 @@ export type MerchantRow = {
   perTxnLimit: string | null;
   settlementCycle: string;
   defaultReservePercent: string;
+  defaultReserveDirection: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN";
   active: boolean;
   company: { name: string };
   feeRules: FeeRuleRow[];
@@ -77,6 +78,7 @@ export function MerchantsClient({
         perTxnLimit: editing.perTxnLimit ?? "",
         settlementCycle: editing.settlementCycle,
         defaultReservePercent: editing.defaultReservePercent,
+        defaultReserveDirection: editing.defaultReserveDirection,
       }
     : {
         name: "",
@@ -89,6 +91,7 @@ export function MerchantsClient({
         perTxnLimit: "",
         settlementCycle: "",
         defaultReservePercent: "0",
+        defaultReserveDirection: "CLIENT_HELD",
       };
 
   return (

@@ -203,15 +203,23 @@ model User {
 // ============================================================================
 
 model Client {
-  id        String       @id @default(cuid())
-  name      String
-  code      String?      @unique
-  email     String?
-  phone     String?
-  notes     String?
-  status    RecordStatus @default(ACTIVE)
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
+  id                      String            @id @default(cuid())
+  name                    String
+  code                    String?           @unique
+  email                   String?
+  phone                   String?
+  notes                   String?
+  status                  RecordStatus      @default(ACTIVE)
+  // Default reserve handling for this client's transactions -- purely a
+  // form-default convenience layered on top of the merchant's own default;
+  // every field here is nullable ("custom" / no default) and always
+  // overridable per transaction. Precedence: per-transaction > this client
+  // default > merchant default.
+  defaultReserveType      ReserveValueType? @map("default_reserve_type")
+  defaultReserveValue     Decimal?          @map("default_reserve_value") @db.Decimal(18, 2)
+  defaultReserveDirection ReserveDirection? @map("default_reserve_direction")
+  createdAt               DateTime          @default(now()) @map("created_at")
+  updatedAt               DateTime          @updatedAt @map("updated_at")
 
   rateHistory           ClientRateHistory[]
   transactions          Transaction[]
@@ -315,20 +323,24 @@ model Employee {
 }
 
 model Merchant {
-  id                    String   @id @default(cuid())
-  name                  String
-  companyId             String   @map("company_id")
-  businessUnitId        String?  @map("business_unit_id")
-  processor             String
-  settlementBankId      String   @map("settlement_bank_id")
-  dailyLimit            Decimal? @map("daily_limit") @db.Decimal(18, 2)
-  monthlyLimit          Decimal? @map("monthly_limit") @db.Decimal(18, 2)
-  perTxnLimit           Decimal? @map("per_txn_limit") @db.Decimal(18, 2)
-  settlementCycle       String   @map("settlement_cycle")
-  defaultReservePercent Decimal  @default(0) @map("default_reserve_percent") @db.Decimal(5, 2)
-  active                Boolean  @default(true)
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @updatedAt @map("updated_at")
+  id                      String           @id @default(cuid())
+  name                    String
+  companyId               String           @map("company_id")
+  businessUnitId          String?          @map("business_unit_id")
+  processor               String
+  settlementBankId        String           @map("settlement_bank_id")
+  dailyLimit              Decimal?         @map("daily_limit") @db.Decimal(18, 2)
+  monthlyLimit            Decimal?         @map("monthly_limit") @db.Decimal(18, 2)
+  perTxnLimit             Decimal?         @map("per_txn_limit") @db.Decimal(18, 2)
+  settlementCycle         String           @map("settlement_cycle")
+  defaultReservePercent   Decimal          @default(0) @map("default_reserve_percent") @db.Decimal(5, 2)
+  // Fallback direction when neither the transaction nor the client sets
+  // one. Defaults to CLIENT_HELD -- the historical behavior, before
+  // per-transaction/client overrides existed.
+  defaultReserveDirection ReserveDirection @default(CLIENT_HELD) @map("default_reserve_direction")
+  active                  Boolean          @default(true)
+  createdAt               DateTime         @default(now()) @map("created_at")
+  updatedAt               DateTime         @updatedAt @map("updated_at")
 
   company        Company       @relation(fields: [companyId], references: [id])
   businessUnit   BusinessUnit? @relation(fields: [businessUnitId], references: [id])
@@ -1220,15 +1232,27 @@ model Account {
   @@map("chart_of_accounts")
 }
 
-// Who the eventual money belongs to once a merchant/processor reserve is
-// released: CLIENT (merchantReserveAmount -- was already excluded from the
-// client's clientNetPayable, so releasing it doesn't touch the client
-// ledger by itself, it just moves cash from "held by the merchant" to
-// "in FP's bank") vs FOUNDAPAY (fpReserveAmount -- FP's own margin-
-// protection reserve, becomes FP's own cash on release).
-enum ReserveOwner {
-  CLIENT
-  FOUNDAPAY
+// Whose money a reserve is and which way it's owed -- NOT one-directional.
+// CLIENT_HELD: a merchant/processor withholds part of the CLIENT's funds.
+//   Still the client's money -- a LIABILITY FoundaPay owes back to them.
+//   Release pays the client (bank out, liability down); never touches
+//   clientNetPayable itself since it was already excluded from it there.
+// FP_FRONTED: FoundaPay puts up its OWN money as a reserve on the client's
+//   behalf. The client owes FoundaPay back -- a RECEIVABLE (asset), posted
+//   immediately as a client-ledger charge so it shows on their statement.
+//   Settling brings cash in and clears the receivable (credits the charge
+//   back out).
+// FP_OWN: FoundaPay's own reserve, not tied to any client -- an asset that
+//   becomes FP's own cash on release, no client-ledger effect ever.
+enum ReserveDirection {
+  CLIENT_HELD
+  FP_FRONTED
+  FP_OWN
+}
+
+enum ReserveValueType {
+  PERCENT
+  FIXED
 }
 
 enum ReserveActionType {
@@ -1246,14 +1270,14 @@ enum ReserveActionType {
 // full resolution history -- partial releases, partial chargeback
 // applications, write-offs -- stays append-only and auditable.
 model ReserveHold {
-  id             String       @id @default(cuid())
-  transactionId  String       @map("transaction_id")
-  merchantId     String?      @map("merchant_id")
-  owner          ReserveOwner
-  originalAmount Decimal      @map("original_amount") @db.Decimal(18, 2)
-  heldSince      DateTime     @map("held_since")
-  createdById    String       @map("created_by_id")
-  createdAt      DateTime     @default(now()) @map("created_at")
+  id             String           @id @default(cuid())
+  transactionId  String           @map("transaction_id")
+  merchantId     String?          @map("merchant_id")
+  direction      ReserveDirection
+  originalAmount Decimal          @map("original_amount") @db.Decimal(18, 2)
+  heldSince      DateTime         @map("held_since")
+  createdById    String           @map("created_by_id")
+  createdAt      DateTime         @default(now()) @map("created_at")
 
   transaction Transaction         @relation(fields: [transactionId], references: [id])
   merchant    Merchant?           @relation(fields: [merchantId], references: [id])

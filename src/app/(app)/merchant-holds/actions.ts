@@ -13,7 +13,7 @@ import type { ActionResult } from "@/lib/action-result";
 async function loadReserveHold(reserveHoldId: string) {
   const hold = await prisma.reserveHold.findUnique({
     where: { id: reserveHoldId },
-    include: { actions: true },
+    include: { actions: true, transaction: { select: { clientId: true } } },
   });
   if (!hold) return null;
   const used = hold.actions.reduce((sum, a) => sum.plus(a.amount), new Decimal(0));
@@ -25,15 +25,22 @@ function revalidateReserveViews(clientId?: string | null) {
   revalidatePath("/merchant-holds");
   revalidatePath("/statements/balance-sheet");
   revalidatePath("/statements/income-statement");
+  revalidatePath("/statements/cash-flow");
   revalidatePath("/cash-position");
   if (clientId) revalidatePath(`/client-ledger/${clientId}`);
 }
 
-// A reserve is a receivable, not cash -- releasing it moves it into an
-// actual bank account. It never touches the client's ledger: the client's
-// entitlement to it was already excluded from clientNetPayable at
-// transaction time, so paying the client (if warranted) is a separate,
-// ordinary Payout, outside this action's scope.
+// Release/settle a reserve, per its direction (see ReserveDirection):
+//   CLIENT_HELD -- this was always the client's money, sitting somewhere
+//     else. Releasing it pays the client directly: bank OUT, no ledger
+//     charge either way (it was never counted in clientNetPayable, so
+//     there's nothing to reverse -- if a further payout is warranted for
+//     any OTHER reason, that's a separate, ordinary Payout).
+//   FP_FRONTED -- FoundaPay already charged the client's ledger for this at
+//     creation (a receivable). Settling means the client pays it back:
+//     bank IN, and that receivable charge is credited back out (cleared).
+//   FP_OWN -- FoundaPay's own reserve becoming FoundaPay's own cash: bank
+//     IN, no client-ledger effect, ever.
 export async function releaseReserveHold(
   reserveHoldId: string,
   input: { amount: string; bankAccountId: string; notes: string }
@@ -61,6 +68,10 @@ export async function releaseReserveHold(
   const monthError = await assertMonthOpen(accountingMonth);
   if (monthError) return { ok: false, error: monthError };
 
+  const payingClient = hold.direction === "CLIENT_HELD";
+  const bankAmount = payingClient ? amount.negated() : amount;
+  const verb = payingClient ? "paid to client" : hold.direction === "FP_FRONTED" ? "settled by client" : "released";
+
   await prisma.$transaction(async (tx) => {
     const action = await tx.reserveHoldAction.create({
       data: {
@@ -76,33 +87,52 @@ export async function releaseReserveHold(
     });
     await postBankLedgerEntry(tx, {
       bankAccountId: input.bankAccountId,
-      amount: amount.toString(),
+      amount: bankAmount.toString(),
       entryDate: actionDate,
       accountingMonth,
       sourceType: "RESERVE",
       sourceId: action.id,
-      description: `Reserve released -- ${hold.transactionId}${input.notes ? `: ${input.notes}` : ""}`,
+      description: `Reserve ${verb} -- ${hold.transactionId}${input.notes ? `: ${input.notes}` : ""}`,
       createdById: user.id,
     });
+
+    if (hold.direction === "FP_FRONTED") {
+      await tx.clientLedger.create({
+        data: {
+          clientId: hold.transaction.clientId,
+          entryDate: actionDate,
+          accountingMonth,
+          amount: amount.toString(),
+          sourceType: "RESERVE",
+          sourceId: action.id,
+          transactionId: hold.transactionId,
+          description: `Reserve settled -- ${hold.transactionId}${input.notes ? `: ${input.notes}` : ""}`,
+          createdById: user.id,
+        },
+      });
+    }
+
     await writeAuditLog(tx, {
       entityType: "ReserveHold",
       entityId: reserveHoldId,
       action: "UPDATE",
       performedById: user.id,
       afterSnapshot: JSON.parse(JSON.stringify(action)),
-      notes: `Released ${amount.toFixed(2)} into ${bankAccount.name}`,
+      notes: `${amount.toFixed(2)} ${verb} via ${bankAccount.name}`,
     });
   });
 
-  revalidateReserveViews();
+  revalidateReserveViews(hold.direction === "FP_FRONTED" ? hold.transaction.clientId : null);
   return { ok: true };
 }
 
-// Client-owned: the reserve was never counted as the client's to begin
-// with (it was excluded from clientNetPayable), so offsetting a chargeback
-// out of it credits the client back for the clawback that chargeback
-// caused. FoundaPay-owned: it's FP absorbing its own chargeback exposure --
-// no ledger effect, just closes out the hold against the loss.
+// Offsets a chargeback with this reserve, full or partial. Any direction
+// with client involvement (CLIENT_HELD or FP_FRONTED) credits the client's
+// ledger: CLIENT_HELD had no charge to begin with, so this restores what
+// the chargeback took from their balance; FP_FRONTED already charged them
+// for this reserve, so this forgives that charge instead of collecting it,
+// using it to absorb the chargeback loss instead. FP_OWN is FoundaPay
+// absorbing its own exposure -- no ledger effect, just closes the hold.
 export async function applyReserveToChargeback(
   reserveHoldId: string,
   input: { amount: string; rcvId: string; notes: string }
@@ -125,13 +155,12 @@ export async function applyReserveToChargeback(
     return { ok: false, error: "Pick a chargeback that belongs to this reserve's transaction." };
   }
 
-  const transaction = await prisma.transaction.findUnique({ where: { id: hold.transactionId } });
-  if (!transaction) return { ok: false, error: "Transaction not found." };
-
   const actionDate = new Date();
   const accountingMonth = accountingMonthOf(actionDate);
   const monthError = await assertMonthOpen(accountingMonth);
   if (monthError) return { ok: false, error: monthError };
+
+  const creditsClient = hold.direction !== "FP_OWN";
 
   await prisma.$transaction(async (tx) => {
     const action = await tx.reserveHoldAction.create({
@@ -147,17 +176,17 @@ export async function applyReserveToChargeback(
       },
     });
 
-    if (hold.owner === "CLIENT") {
+    if (creditsClient) {
       await tx.clientLedger.create({
         data: {
-          clientId: transaction.clientId,
+          clientId: hold.transaction.clientId,
           entryDate: actionDate,
           accountingMonth,
           amount: amount.toString(),
           sourceType: "RESERVE",
           sourceId: action.id,
-          transactionId: transaction.id,
-          description: `Reserve applied to chargeback -- ${transaction.id}${input.notes ? `: ${input.notes}` : ""}`,
+          transactionId: hold.transactionId,
+          description: `Reserve applied to chargeback -- ${hold.transactionId}${input.notes ? `: ${input.notes}` : ""}`,
           createdById: user.id,
         },
       });
@@ -173,12 +202,20 @@ export async function applyReserveToChargeback(
     });
   });
 
-  revalidateReserveViews(hold.owner === "CLIENT" ? transaction.clientId : null);
+  revalidateReserveViews(creditsClient ? hold.transaction.clientId : null);
   return { ok: true };
 }
 
-// Records a loss -- reduces the receivable without any cash or client-ledger
-// movement, since the money was never going to be collected.
+// Records a loss and removes the amount from the receivable/liability.
+//   CLIENT_HELD -- this was a liability (money owed to the client), never
+//     charged to their ledger. Forgiving it is a judgment call left neutral
+//     here (no COGS impact, no client-ledger effect) rather than inventing
+//     a speculative "other income" line for an edge case.
+//   FP_FRONTED -- a genuine bad-debt loss: forgives the client's charge
+//     (ledger credit) and counts toward the Income Statement's Reserve
+//     Write-Offs line.
+//   FP_OWN -- FoundaPay's own asset lost: counts toward Reserve Write-Offs,
+//     no client-ledger effect.
 export async function writeOffReserveHold(
   reserveHoldId: string,
   input: { amount: string; notes: string }
@@ -186,7 +223,7 @@ export async function writeOffReserveHold(
   const user = await requireRole("OWNER", "ACCOUNTANT");
   const found = await loadReserveHold(reserveHoldId);
   if (!found) return { ok: false, error: "Reserve hold not found." };
-  const { remaining } = found;
+  const { hold, remaining } = found;
 
   const amount = new Decimal(input.amount || 0);
   if (!amount.isFinite() || amount.lessThanOrEqualTo(0)) {
@@ -204,6 +241,8 @@ export async function writeOffReserveHold(
   const monthError = await assertMonthOpen(accountingMonth);
   if (monthError) return { ok: false, error: monthError };
 
+  const forgivesClientCharge = hold.direction === "FP_FRONTED";
+
   await prisma.$transaction(async (tx) => {
     const action = await tx.reserveHoldAction.create({
       data: {
@@ -216,6 +255,23 @@ export async function writeOffReserveHold(
         performedById: user.id,
       },
     });
+
+    if (forgivesClientCharge) {
+      await tx.clientLedger.create({
+        data: {
+          clientId: hold.transaction.clientId,
+          entryDate: actionDate,
+          accountingMonth,
+          amount: amount.toString(),
+          sourceType: "RESERVE",
+          sourceId: action.id,
+          transactionId: hold.transactionId,
+          description: `Reserve written off (forgiven) -- ${hold.transactionId}: ${input.notes}`,
+          createdById: user.id,
+        },
+      });
+    }
+
     await writeAuditLog(tx, {
       entityType: "ReserveHold",
       entityId: reserveHoldId,
@@ -226,13 +282,13 @@ export async function writeOffReserveHold(
     });
   });
 
-  revalidateReserveViews();
+  revalidateReserveViews(forgivesClientCharge ? hold.transaction.clientId : null);
   return { ok: true };
 }
 
-// Keep Holding doesn't change the remaining receivable, so it writes no
-// ReserveHoldAction row -- just an audit trail entry that someone reviewed
-// it and chose to leave it as-is.
+// Keep Holding doesn't change the remaining receivable/liability, so it
+// writes no ReserveHoldAction row -- just an audit trail entry that someone
+// reviewed it and chose to leave it as-is.
 export async function keepHoldingReserve(
   reserveHoldId: string,
   input: { notes: string }

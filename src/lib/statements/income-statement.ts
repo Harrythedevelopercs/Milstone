@@ -64,8 +64,10 @@ export async function calculateIncomeStatement(accountingMonth: string): Promise
       where: { accountingMonth },
       _sum: { amount: true },
     }),
+    // CLIENT_HELD write-offs excluded: forgiving a liability FoundaPay owed
+    // the client isn't a cost -- see the write-off action's own comment.
     prisma.reserveHoldAction.aggregate({
-      where: { accountingMonth, type: "WRITE_OFF" },
+      where: { accountingMonth, type: "WRITE_OFF", reserveHold: { direction: { not: "CLIENT_HELD" } } },
       _sum: { amount: true },
     }),
   ]);

@@ -21,6 +21,7 @@ export const merchantSchema = z.object({
     .string()
     .trim()
     .refine((v) => v === "" || !Number.isNaN(Number(v)), { message: "Must be a number" }),
+  defaultReserveDirection: z.enum(["CLIENT_HELD", "FP_FRONTED", "FP_OWN"]),
 });
 
 export type MerchantFormValues = z.infer<typeof merchantSchema>;

@@ -21,6 +21,7 @@ function toData(parsed: ReturnType<typeof merchantSchema.safeParse>) {
     perTxnLimit: d.perTxnLimit || null,
     settlementCycle: d.settlementCycle,
     defaultReservePercent: d.defaultReservePercent || "0",
+    defaultReserveDirection: d.defaultReserveDirection,
   };
 }
 

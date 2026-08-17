@@ -48,6 +48,7 @@ export async function createTransaction(input: unknown): Promise<CreateTransacti
     feeBearer: d.feeBearer,
     merchantFeeManual: d.merchantFeeManual || null,
     merchantReservePercent: d.merchantReservePercent,
+    merchantReserveDirection: d.merchantReserveDirection,
     fpReservePercent: d.fpReservePercent,
     documentUrl: d.documentUrl || null,
     notes: d.notes || null,
@@ -57,7 +58,10 @@ export async function createTransaction(input: unknown): Promise<CreateTransacti
     status: "APPROVED",
   });
 
-  if (result.ok) revalidatePath("/transactions");
+  if (result.ok) {
+    revalidatePath("/transactions");
+    revalidatePath(`/client-ledger/${d.clientId}`);
+  }
   return result;
 }
 

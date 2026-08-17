@@ -28,6 +28,7 @@ export const transactionSchema = z.object({
   feeBearer: z.enum(["FOUNDAPAY", "CLIENT"]),
   merchantFeeManual: optionalDecimalString,
   merchantReservePercent: decimalString("Required"),
+  merchantReserveDirection: z.enum(["CLIENT_HELD", "FP_FRONTED", "FP_OWN"]),
   fpReservePercent: decimalString("Required"),
   documentUrl: z.string().trim().optional().or(z.literal("")),
   notes: z.string().trim().optional().or(z.literal("")),

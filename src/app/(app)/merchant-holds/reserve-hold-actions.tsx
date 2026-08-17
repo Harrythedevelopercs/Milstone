@@ -35,38 +35,38 @@ import {
 } from "./actions";
 
 type DialogKind = "RELEASE" | "APPLY" | "WRITE_OFF" | "KEEP";
+type Direction = "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN";
 
-const DIALOG_COPY: Record<DialogKind, { title: string; description: string }> = {
-  RELEASE: {
-    title: "Release reserve",
+const RELEASE_COPY: Record<Direction, { title: string; description: string; bankLabel: string }> = {
+  CLIENT_HELD: {
+    title: "Release (pay client)",
     description:
-      "Moves this amount out of the receivable and into an actual bank account -- cash up, receivable down. Paying it out to the client, if warranted, is a separate Payout.",
+      "This was always the client's money -- pays it out of the bank account below, straight to them. Liability down, bank down.",
+    bankLabel: "Pay from",
   },
-  APPLY: {
-    title: "Apply reserve to chargeback",
+  FP_FRONTED: {
+    title: "Settle (collect from client)",
     description:
-      "Offsets a specific chargeback on this transaction with this reserve, full or partial. Independent of the reserve otherwise -- a chargeback never consumes a reserve on its own.",
+      "The client owes FoundaPay this back. Records it as collected into the bank account below and clears the receivable charge on their ledger.",
+    bankLabel: "Deposit into",
   },
-  WRITE_OFF: {
-    title: "Write off reserve",
+  FP_OWN: {
+    title: "Release",
     description:
-      "Records this amount as a loss and removes it from the receivable permanently. This cannot be undone -- a reason is required.",
-  },
-  KEEP: {
-    title: "Keep holding",
-    description: "No change to the reserve -- just logs that this was reviewed and left as-is.",
+      "Moves this amount out of the receivable and into an actual bank account -- cash up, receivable down.",
+    bankLabel: "Deposit into",
   },
 };
 
 export function ReserveHoldActions({
   reserveHoldId,
-  owner,
+  direction,
   remaining,
   bankAccounts,
   chargebacks,
 }: {
   reserveHoldId: string;
-  owner: "CLIENT" | "FOUNDAPAY";
+  direction: Direction;
   remaining: string;
   bankAccounts: { id: string; name: string }[];
   chargebacks: { id: string; label: string }[];
@@ -77,6 +77,24 @@ export function ReserveHoldActions({
   const [bankAccountId, setBankAccountId] = useState("");
   const [rcvId, setRcvId] = useState("");
   const [notes, setNotes] = useState("");
+
+  const DIALOG_COPY: Record<DialogKind, { title: string; description: string }> = {
+    RELEASE: RELEASE_COPY[direction],
+    APPLY: {
+      title: "Apply reserve to chargeback",
+      description:
+        "Offsets a specific chargeback on this transaction with this reserve, full or partial. Independent of the reserve otherwise -- a chargeback never consumes a reserve on its own.",
+    },
+    WRITE_OFF: {
+      title: "Write off reserve",
+      description:
+        "Records this amount as a loss and removes it permanently. This cannot be undone -- a reason is required.",
+    },
+    KEEP: {
+      title: "Keep holding",
+      description: "No change to the reserve -- just logs that this was reviewed and left as-is.",
+    },
+  };
 
   function openDialog(kind: DialogKind) {
     setDialog(kind);
@@ -89,7 +107,7 @@ export function ReserveHoldActions({
   function submit() {
     if (dialog === "RELEASE") {
       run(() => releaseReserveHold(reserveHoldId, { amount, bankAccountId, notes }), {
-        successMessage: "Reserve released",
+        successMessage: direction === "CLIENT_HELD" ? "Reserve paid to client" : "Reserve released",
         onSuccess: () => setDialog(null),
       });
     } else if (dialog === "APPLY") {
@@ -128,7 +146,7 @@ export function ReserveHoldActions({
           Actions
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => openDialog("RELEASE")}>Release</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => openDialog("RELEASE")}>{RELEASE_COPY[direction].title}</DropdownMenuItem>
           <DropdownMenuItem onClick={() => openDialog("APPLY")} disabled={chargebacks.length === 0}>
             Apply to Chargeback
           </DropdownMenuItem>
@@ -164,7 +182,7 @@ export function ReserveHoldActions({
                 )}
                 {dialog === "RELEASE" && (
                   <div className="space-y-1">
-                    <Label>Deposit into</Label>
+                    <Label>{RELEASE_COPY[direction].bankLabel}</Label>
                     <Select
                       value={bankAccountId}
                       onValueChange={(v) => setBankAccountId(v ?? "")}
@@ -202,13 +220,15 @@ export function ReserveHoldActions({
                         ))}
                       </SelectContent>
                     </Select>
-                    {owner === "CLIENT" ? (
+                    {direction === "FP_OWN" ? (
                       <p className="text-xs text-muted-foreground">
-                        Client-owned: credits the client&apos;s ledger for this amount.
+                        FoundaPay-owned: internal absorption, no ledger movement.
                       </p>
                     ) : (
                       <p className="text-xs text-muted-foreground">
-                        FoundaPay-owned: internal absorption, no ledger movement.
+                        {direction === "CLIENT_HELD"
+                          ? "Client-held: credits the client's ledger for this amount."
+                          : "FP-fronted: forgives the receivable charge, crediting the client's ledger instead of collecting it."}
                       </p>
                     )}
                   </div>
@@ -225,6 +245,13 @@ export function ReserveHoldActions({
                       rows={2}
                       placeholder={dialog === "WRITE_OFF" ? "Why this is uncollectible" : "Optional"}
                     />
+                    {dialog === "WRITE_OFF" && (
+                      <p className="text-xs text-muted-foreground">
+                        {direction === "CLIENT_HELD"
+                          ? "Client-held: forgives the liability, no P&L impact."
+                          : "Counts toward the Income Statement's Reserve Write-Offs line."}
+                      </p>
+                    )}
                   </div>
                 )}
                 {dialog === "RELEASE" && (

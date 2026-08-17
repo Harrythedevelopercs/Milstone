@@ -30,10 +30,22 @@ export default async function ClientExternalStatementPage({
   const client = await prisma.client.findUnique({ where: { id } });
   if (!client) notFound();
 
-  const entries = await prisma.clientLedger.findMany({
-    where: { clientId: id },
-    orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
-  });
+  const [entries, clientHeldReserves] = await Promise.all([
+    prisma.clientLedger.findMany({
+      where: { clientId: id },
+      orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
+    }),
+    prisma.reserveHold.findMany({
+      where: { direction: "CLIENT_HELD", transaction: { clientId: id } },
+      include: { actions: true },
+    }),
+  ]);
+
+  const heldForClientTotal = clientHeldReserves.reduce((sum, h) => {
+    const used = h.actions.reduce((s, a) => s + Number(a.amount), 0);
+    const remaining = Number(h.originalAmount) - used;
+    return remaining > 0 ? sum + remaining : sum;
+  }, 0);
 
   // Running balance must include everything before the range starts, so we
   // compute it over full history and only display rows inside the range.
@@ -69,6 +81,17 @@ export default async function ClientExternalStatementPage({
         </p>
         <p className="text-3xl font-semibold">{Math.abs(balance).toFixed(2)}</p>
       </div>
+
+      {heldForClientTotal > 0 && (
+        <div className="rounded-md border bg-muted/30 p-4">
+          <p className="text-sm text-muted-foreground">Held on your behalf (not yet released)</p>
+          <p className="text-xl font-semibold">{heldForClientTotal.toFixed(2)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Still your money -- a merchant/processor is holding it back temporarily. Not included
+            in the balance above.
+          </p>
+        </div>
+      )}
 
       <Table>
         <TableHeader>
@@ -116,6 +139,8 @@ function clientFriendlyDescription(sourceType: string): string {
       return "Expense";
     case "INTERNAL_TRANSFER":
       return "Internal transfer fee";
+    case "RESERVE":
+      return "Reserve settlement";
     default:
       return "Account activity";
   }

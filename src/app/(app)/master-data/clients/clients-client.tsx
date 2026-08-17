@@ -20,6 +20,9 @@ export type ClientRow = {
   notes: string | null;
   status: "ACTIVE" | "INACTIVE";
   rateHistory: RateHistoryRow[];
+  defaultReserveType: "PERCENT" | "FIXED" | null;
+  defaultReserveValue: string | null;
+  defaultReserveDirection: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN" | null;
 };
 
 export function ClientsClient({
@@ -61,8 +64,20 @@ export function ClientsClient({
         email: editing.email ?? "",
         phone: editing.phone ?? "",
         notes: editing.notes ?? "",
+        defaultReserveType: editing.defaultReserveType ?? "",
+        defaultReserveValue: editing.defaultReserveValue ?? "",
+        defaultReserveDirection: editing.defaultReserveDirection ?? "",
       }
-    : { name: "", code: "", email: "", phone: "", notes: "" };
+    : {
+        name: "",
+        code: "",
+        email: "",
+        phone: "",
+        notes: "",
+        defaultReserveType: "",
+        defaultReserveValue: "",
+        defaultReserveDirection: "",
+      };
 
   return (
     <div className="space-y-4">

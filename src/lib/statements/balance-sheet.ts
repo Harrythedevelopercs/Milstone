@@ -77,31 +77,38 @@ export async function calculateBalanceSheet(asOfDate: Date = new Date()): Promis
   const bonusPoolRemaining = new Decimal(bonusPoolAgg._sum.amount ?? 0);
   const thirdPartyPayables = sumPositive(thirdPartyBalances);
 
-  // Money a processor/merchant is holding back from FP (or FP retains
-  // itself) -- already excluded from client-side settlement math, so it's
-  // a receivable owed TO FoundaPay until released, applied to a
-  // chargeback, or written off. Never auto-reduced by a chargeback hitting
-  // the underlying transaction -- only an explicit manual action changes it.
-  let clientOwnedReserves = new Decimal(0);
-  let fpOwnedReserves = new Decimal(0);
+  // Reserves are not one-directional -- each carries its own accounting
+  // treatment depending on whose money it is (see ReserveDirection):
+  //   CLIENT_HELD -- still the client's money, just held elsewhere. A
+  //     LIABILITY FoundaPay owes back to them.
+  //   FP_FRONTED -- FoundaPay's own money, put up on the client's behalf.
+  //     A RECEIVABLE from the client (they owe it back).
+  //   FP_OWN -- FoundaPay's own reserve. A plain receivable ASSET.
+  // Never auto-reduced by a chargeback hitting the underlying transaction
+  // -- only an explicit manual action (Release/Apply/Write-Off) changes it.
+  let clientHeldLiability = new Decimal(0);
+  let fpFrontedReceivable = new Decimal(0);
+  let fpOwnReserves = new Decimal(0);
   for (const hold of reserveHolds) {
     const used = hold.actions.reduce((sum, a) => sum.plus(a.amount), new Decimal(0));
     const remaining = new Decimal(hold.originalAmount).minus(used);
     if (remaining.lessThanOrEqualTo(0)) continue;
-    if (hold.owner === "CLIENT") clientOwnedReserves = clientOwnedReserves.plus(remaining);
-    else fpOwnedReserves = fpOwnedReserves.plus(remaining);
+    if (hold.direction === "CLIENT_HELD") clientHeldLiability = clientHeldLiability.plus(remaining);
+    else if (hold.direction === "FP_FRONTED") fpFrontedReceivable = fpFrontedReceivable.plus(remaining);
+    else fpOwnReserves = fpOwnReserves.plus(remaining);
   }
 
   const assetLines: BalanceSheetLine[] = [
     { label: "Cash (Banks, USDT, Cash)", amount: cash },
     { label: "Client Receivables / Advances", amount: clientReceivables },
-    { label: "Reserves Receivable (Client-Owned)", amount: clientOwnedReserves },
-    { label: "Reserves Receivable (FoundaPay-Owned)", amount: fpOwnedReserves },
+    { label: "Reserves Receivable (FoundaPay-Owned)", amount: fpOwnReserves },
+    { label: "Receivable from Clients (FP-Fronted Reserves)", amount: fpFrontedReceivable },
   ];
   const assets = assetLines.reduce((sum, l) => sum.plus(l.amount), new Decimal(0));
 
   const liabilityLines: BalanceSheetLine[] = [
     { label: "Client Payables", amount: clientPayables },
+    { label: "Client Reserves Held (Owed to Clients)", amount: clientHeldLiability },
     { label: "Employee-Partner Commission Owed", amount: epOwed },
     { label: "Partner Distribution Owed", amount: partnerOwed },
     { label: "Bonus Pool (unallocated)", amount: bonusPoolRemaining.greaterThan(0) ? bonusPoolRemaining : new Decimal(0) },

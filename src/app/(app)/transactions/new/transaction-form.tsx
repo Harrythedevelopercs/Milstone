@@ -19,6 +19,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -29,12 +30,19 @@ import { useCrudAction } from "@/hooks/use-crud-action";
 import { transactionSchema, type TransactionFormValues } from "../schema";
 import { createTransaction, updateTransaction } from "../actions";
 
-export type ClientOption = { id: string; name: string };
+export type ClientOption = {
+  id: string;
+  name: string;
+  defaultReserveType?: "PERCENT" | "FIXED" | null;
+  defaultReserveValue?: string | null;
+  defaultReserveDirection?: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN" | null;
+};
 export type MerchantOption = {
   id: string;
   name: string;
   settlementBankId: string;
   defaultReservePercent: string;
+  defaultReserveDirection: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN";
 };
 export type BankOption = { id: string; name: string };
 export type PaymentMethodOption = { id: string; name: string; requiresMerchant: boolean };
@@ -42,6 +50,12 @@ export type PaymentMethodOption = { id: string; name: string; requiresMerchant: 
 const FEE_BEARER_ITEMS = [
   { value: "FOUNDAPAY", label: "FoundaPay" },
   { value: "CLIENT", label: "Client" },
+];
+
+const RESERVE_DIRECTION_ITEMS = [
+  { value: "CLIENT_HELD", label: "Client-held (owed back to them)" },
+  { value: "FP_FRONTED", label: "FP-fronted (they owe FoundaPay)" },
+  { value: "FP_OWN", label: "FoundaPay-owned" },
 ];
 
 const CHARGE_TYPE_ITEMS = [
@@ -86,6 +100,7 @@ export function TransactionForm({
       feeBearer: "CLIENT",
       merchantFeeManual: "",
       merchantReservePercent: "0",
+      merchantReserveDirection: "CLIENT_HELD",
       fpReservePercent: "0",
       documentUrl: "",
       notes: "",
@@ -95,20 +110,39 @@ export function TransactionForm({
   });
 
   const merchantId = form.watch("merchantId");
+  const clientId = form.watch("clientId");
   const paymentMethodId = form.watch("paymentMethodId");
   const chargeType = form.watch("chargeType");
+  const grossAmount = form.watch("grossAmount");
   const selectedPaymentMethod = paymentMethods.find((m) => m.id === paymentMethodId);
   const isDirect = !!selectedPaymentMethod && !selectedPaymentMethod.requiresMerchant;
 
+  // Precedence for the reserve default: per-transaction override (once the
+  // user touches these fields themselves) > this client's default > the
+  // merchant's default. Re-resolved whenever the merchant or client
+  // changes, same as the existing settlement-bank default below.
   useEffect(() => {
     if (editingId) return; // don't clobber the existing bank/reserve on edit
     const merchant = merchants.find((m) => m.id === merchantId);
-    if (merchant) {
-      form.setValue("expectedBankId", merchant.settlementBankId);
-      form.setValue("merchantReservePercent", merchant.defaultReservePercent);
+    if (!merchant) return;
+    const client = clients.find((c) => c.id === clientId);
+
+    form.setValue("expectedBankId", merchant.settlementBankId);
+
+    let percent = merchant.defaultReservePercent;
+    let direction: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN" = merchant.defaultReserveDirection;
+    if (client?.defaultReserveType === "PERCENT" && client.defaultReserveValue) {
+      percent = client.defaultReserveValue;
+    } else if (client?.defaultReserveType === "FIXED" && client.defaultReserveValue) {
+      const gross = Number(grossAmount);
+      if (gross > 0) percent = ((Number(client.defaultReserveValue) / gross) * 100).toFixed(2);
     }
+    if (client?.defaultReserveDirection) direction = client.defaultReserveDirection;
+
+    form.setValue("merchantReservePercent", percent);
+    form.setValue("merchantReserveDirection", direction);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [merchantId]);
+  }, [merchantId, clientId]);
 
   useEffect(() => {
     if (isDirect) {
@@ -414,6 +448,38 @@ export function TransactionForm({
                   )}
                 />
               )}
+              {!isDirect && (
+                <FormField
+                  control={form.control}
+                  name="merchantReserveDirection"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Reserve direction</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange} items={RESERVE_DIRECTION_ITEMS}>
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {RESERVE_DIRECTION_ITEMS.map((i) => (
+                            <SelectItem key={i.value} value={i.value}>
+                              {i.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Defaulted from the client (if set) or the merchant. Always overridable.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="fpReservePercent"

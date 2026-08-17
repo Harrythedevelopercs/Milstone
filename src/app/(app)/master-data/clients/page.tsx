@@ -28,6 +28,9 @@ export default async function ClientsPage() {
     phone: c.phone,
     notes: c.notes,
     status: c.status,
+    defaultReserveType: c.defaultReserveType,
+    defaultReserveValue: c.defaultReserveValue?.toString() ?? null,
+    defaultReserveDirection: c.defaultReserveDirection,
     rateHistory: c.rateHistory.map((r) => ({
       id: r.id,
       paymentMethodId: r.paymentMethodId,

@@ -16,7 +16,14 @@ export const PAYABLE_TRANSACTION_STATUSES = [
 ] as const;
 
 export type PayableTransaction = { id: string; clientId: string; remaining: string };
-export type PayoutClientOption = { id: string; name: string; currentBalance: string };
+export type PayoutClientOption = {
+  id: string;
+  name: string;
+  currentBalance: string;
+  defaultReserveType: "PERCENT" | "FIXED" | null;
+  defaultReserveValue: string | null;
+  defaultReserveDirection: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN" | null;
+};
 
 export async function getPayoutFormData(): Promise<{
   clients: PayoutClientOption[];
@@ -26,7 +33,13 @@ export async function getPayoutFormData(): Promise<{
     prisma.client.findMany({
       where: { status: "ACTIVE" },
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        defaultReserveType: true,
+        defaultReserveValue: true,
+        defaultReserveDirection: true,
+      },
     }),
     prisma.transaction.findMany({
       where: { status: { in: [...PAYABLE_TRANSACTION_STATUSES] } },
@@ -42,6 +55,9 @@ export async function getPayoutFormData(): Promise<{
     id: c.id,
     name: c.name,
     currentBalance: new Decimal(balanceByClientId.get(c.id) ?? 0).toFixed(2),
+    defaultReserveType: c.defaultReserveType,
+    defaultReserveValue: c.defaultReserveValue?.toString() ?? null,
+    defaultReserveDirection: c.defaultReserveDirection,
   }));
 
   const payable = payableTransactions.map((t) => {

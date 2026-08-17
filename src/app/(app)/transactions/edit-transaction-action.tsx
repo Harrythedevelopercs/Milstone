@@ -27,6 +27,7 @@ export type EditableTransaction = {
   feeBearer: "FOUNDAPAY" | "CLIENT";
   merchantFeeManual: string | null;
   merchantReservePercent: string;
+  merchantReserveDirection: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN";
   fpReservePercent: string;
   documentUrl: string | null;
   notes: string | null;
@@ -72,6 +73,7 @@ export function EditTransactionAction({
     feeBearer: row.feeBearer,
     merchantFeeManual: row.merchantFeeManual ?? "",
     merchantReservePercent: row.merchantReservePercent,
+    merchantReserveDirection: row.merchantReserveDirection,
     fpReservePercent: row.fpReservePercent,
     documentUrl: row.documentUrl ?? "",
     notes: row.notes ?? "",

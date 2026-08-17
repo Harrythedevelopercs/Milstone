@@ -6,6 +6,14 @@ export const clientSchema = z.object({
   email: z.string().trim().email("Invalid email").optional().or(z.literal("")),
   phone: z.string().trim().optional().or(z.literal("")),
   notes: z.string().trim().optional().or(z.literal("")),
+  // Default reserve handling for this client's transactions -- "" means no
+  // default (custom every time). Always overridable per transaction.
+  defaultReserveType: z.enum(["PERCENT", "FIXED", ""]),
+  defaultReserveValue: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || (!Number.isNaN(Number(v)) && Number(v) >= 0), { message: "Must be a positive number" }),
+  defaultReserveDirection: z.enum(["CLIENT_HELD", "FP_FRONTED", "FP_OWN", ""]),
 });
 
 export type ClientFormValues = z.infer<typeof clientSchema>;

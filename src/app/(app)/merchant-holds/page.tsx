@@ -81,7 +81,7 @@ export default async function MerchantHoldsPage() {
         clientName: h.transaction.client.name,
         merchantId: h.merchantId,
         merchantName: h.merchant?.name ?? "Direct / No Merchant",
-        owner: h.owner,
+        direction: h.direction,
         remaining,
         since: h.heldSince,
         reminder: h.transaction.reminders[0] ?? null,
@@ -116,12 +116,21 @@ export default async function MerchantHoldsPage() {
     reserveGroups.set(key, list);
   }
   const reserveTotal = reserveRows.reduce((sum, r) => sum.plus(r.remaining), new Decimal(0));
-  const clientOwnedTotal = reserveRows
-    .filter((r) => r.owner === "CLIENT")
+  const clientHeldTotal = reserveRows
+    .filter((r) => r.direction === "CLIENT_HELD")
     .reduce((sum, r) => sum.plus(r.remaining), new Decimal(0));
-  const fpOwnedTotal = reserveRows
-    .filter((r) => r.owner === "FOUNDAPAY")
+  const fpFrontedTotal = reserveRows
+    .filter((r) => r.direction === "FP_FRONTED")
     .reduce((sum, r) => sum.plus(r.remaining), new Decimal(0));
+  const fpOwnTotal = reserveRows
+    .filter((r) => r.direction === "FP_OWN")
+    .reduce((sum, r) => sum.plus(r.remaining), new Decimal(0));
+
+  const DIRECTION_LABEL: Record<string, string> = {
+    CLIENT_HELD: "Client-held (liability)",
+    FP_FRONTED: "FP-fronted (receivable)",
+    FP_OWN: "FoundaPay-owned (receivable)",
+  };
 
   const bankAccountOptions = bankAccounts.map((a) => ({ id: a.id, name: bankAccountLabel(a) }));
 
@@ -190,15 +199,19 @@ export default async function MerchantHoldsPage() {
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Reserves (receivable, not yet released)</h2>
+          <h2 className="text-lg font-medium">Reserves (not yet resolved)</h2>
           <div className="flex gap-3">
             <div className="rounded-md border bg-muted/30 px-4 py-2 text-right">
-              <p className="text-xs text-muted-foreground">Client-owned</p>
-              <p className="text-lg font-semibold">{clientOwnedTotal.toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground">Client-held (liability)</p>
+              <p className="text-lg font-semibold">{clientHeldTotal.toFixed(2)}</p>
             </div>
             <div className="rounded-md border bg-muted/30 px-4 py-2 text-right">
-              <p className="text-xs text-muted-foreground">FoundaPay-owned</p>
-              <p className="text-lg font-semibold">{fpOwnedTotal.toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground">FP-fronted (receivable)</p>
+              <p className="text-lg font-semibold">{fpFrontedTotal.toFixed(2)}</p>
+            </div>
+            <div className="rounded-md border bg-muted/30 px-4 py-2 text-right">
+              <p className="text-xs text-muted-foreground">FoundaPay-owned (receivable)</p>
+              <p className="text-lg font-semibold">{fpOwnTotal.toFixed(2)}</p>
             </div>
             <div className="rounded-md border bg-muted/30 px-4 py-2 text-right">
               <p className="text-xs text-muted-foreground">Total reserves</p>
@@ -230,9 +243,7 @@ export default async function MerchantHoldsPage() {
                               {r.transactionId}
                             </Link>
                             <ToneBadge tone="warning">Reserved</ToneBadge>
-                            <ToneBadge tone={r.owner === "CLIENT" ? "success" : "neutral"}>
-                              {r.owner === "CLIENT" ? "Client-owned" : "FoundaPay-owned"}
-                            </ToneBadge>
+                            <ToneBadge tone="neutral">{DIRECTION_LABEL[r.direction]}</ToneBadge>
                             <span className="text-muted-foreground">{r.clientName}</span>
                           </div>
                           <p className="text-xs text-muted-foreground">
@@ -249,7 +260,7 @@ export default async function MerchantHoldsPage() {
                           )}
                           <ReserveHoldActions
                             reserveHoldId={r.id}
-                            owner={r.owner}
+                            direction={r.direction}
                             remaining={r.remaining.toFixed(2)}
                             bankAccounts={bankAccountOptions}
                             chargebacks={chargebacksByTxn.get(r.transactionId) ?? []}

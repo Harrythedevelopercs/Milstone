@@ -27,6 +27,12 @@ import { useCrudAction } from "@/hooks/use-crud-action";
 import { merchantSchema, type MerchantFormValues } from "./schema";
 import { createMerchant, updateMerchant } from "./actions";
 
+const RESERVE_DIRECTION_ITEMS = [
+  { value: "CLIENT_HELD", label: "Client-held (owed back to them)" },
+  { value: "FP_FRONTED", label: "FP-fronted (they owe FoundaPay)" },
+  { value: "FP_OWN", label: "FoundaPay-owned" },
+];
+
 export type Option = { id: string; name: string };
 export type BankAccountOption = {
   id: string;
@@ -255,19 +261,49 @@ export function MerchantForm({
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="defaultReservePercent"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Default reserve %</FormLabel>
-              <FormControl>
-                <Input {...field} type="number" step="0.01" min="0" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="defaultReservePercent"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Default reserve %</FormLabel>
+                <FormControl>
+                  <Input {...field} type="number" step="0.01" min="0" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="defaultReserveDirection"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Default direction</FormLabel>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={RESERVE_DIRECTION_ITEMS}
+                >
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {RESERVE_DIRECTION_ITEMS.map((i) => (
+                      <SelectItem key={i.value} value={i.value}>
+                        {i.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         <div className="grid grid-cols-3 gap-4">
           <FormField
             control={form.control}

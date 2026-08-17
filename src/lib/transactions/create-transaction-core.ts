@@ -32,6 +32,12 @@ export type CoreTransactionInput = {
   feeBearer: "FOUNDAPAY" | "CLIENT";
   merchantFeeManual: string | null;
   merchantReservePercent: string;
+  // Who the merchant reserve is ultimately owed to/by -- see the
+  // ReserveDirection enum comment. Defaults to CLIENT_HELD (the historical
+  // behavior) so existing callers that don't pass this keep working
+  // unchanged. Only meaningful when merchantReservePercent > 0; the FP
+  // reserve (fpReservePercent) is always FP_OWN, no direction to pick.
+  merchantReserveDirection?: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN";
   fpReservePercent: string;
   documentUrl: string | null;
   notes: string | null;
@@ -132,6 +138,7 @@ export async function createTransactionCore(
     ? "MANUAL"
     : "RULE_DEFAULT";
   const merchantReservePercent = isDirect ? "0" : input.merchantReservePercent;
+  const merchantReserveDirection = input.merchantReserveDirection ?? "CLIENT_HELD";
 
   const chargeType = input.chargeType ?? "PERCENTAGE";
   const fpFee = calculateFpFee(
@@ -236,21 +243,39 @@ export async function createTransactionCore(
           createdById: input.createdById,
         });
       }
+
+      // FP_FRONTED: FoundaPay is putting up its own money as this reserve on
+      // the client's behalf, so the client owes it back -- post that as an
+      // immediate receivable charge (same mechanism as a client-behalf
+      // expense) so it's visible on the client's ledger/statement right
+      // away, not just once the reserve is eventually settled.
+      if (Number(merchantReserveAmount) > 0 && merchantReserveDirection === "FP_FRONTED") {
+        await tx.clientLedger.create({
+          data: {
+            clientId: row.clientId,
+            entryDate: row.transactionDate,
+            accountingMonth: row.accountingMonth,
+            amount: `-${money(merchantReserveAmount)}`,
+            sourceType: "RESERVE",
+            sourceId: row.id,
+            transactionId: row.id,
+            description: `Reserve fronted by FoundaPay -- owed back (${row.id})`,
+            createdById: input.createdById,
+          },
+        });
+      }
     }
 
-    // A merchant reserve is money the processor is holding back from what
-    // it owes FoundaPay -- already excluded from expectedSettlement/
-    // clientNetPayable above -- so it's a receivable, not a liability. It's
-    // "client-owned" in the sense that it was never counted as FoundaPay's
-    // to keep; releasing it is tracked separately from paying the client.
-    // An FP reserve is FoundaPay's own retained cushion. Neither is ever
-    // auto-consumed by a chargeback -- that's a manual action on the hold.
+    // A merchant reserve is money the processor is holding back out of this
+    // transaction, tracked with its own append-only resolution history
+    // (see ReserveDirection) rather than vanishing or being silently
+    // consumed by a chargeback -- that's always a manual action on the hold.
     if (Number(merchantReserveAmount) > 0) {
       await tx.reserveHold.create({
         data: {
           transactionId: row.id,
           merchantId: input.merchantId,
-          owner: "CLIENT",
+          direction: merchantReserveDirection,
           originalAmount: money(merchantReserveAmount),
           heldSince: row.transactionDate,
           createdById: input.createdById,
@@ -262,7 +287,7 @@ export async function createTransactionCore(
         data: {
           transactionId: row.id,
           merchantId: input.merchantId,
-          owner: "FOUNDAPAY",
+          direction: "FP_OWN",
           originalAmount: money(fpReserveAmount),
           heldSince: row.transactionDate,
           createdById: input.createdById,

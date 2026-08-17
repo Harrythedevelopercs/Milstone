@@ -26,6 +26,7 @@ export default async function NewTransactionPage() {
         name: true,
         settlementBankId: true,
         defaultReservePercent: true,
+        defaultReserveDirection: true,
       },
     }),
     prisma.bankAccount.findMany({
@@ -78,6 +79,7 @@ export default async function NewTransactionPage() {
     name: m.name,
     settlementBankId: m.settlementBankId,
     defaultReservePercent: m.defaultReservePercent.toString(),
+    defaultReserveDirection: m.defaultReserveDirection,
   }));
   const bankAccountOptions = bankAccounts.map((a) => ({
     id: a.id,

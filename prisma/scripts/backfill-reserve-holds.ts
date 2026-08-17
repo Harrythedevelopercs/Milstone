@@ -31,15 +31,17 @@ async function main() {
 
   let created = 0;
   for (const t of transactions) {
-    const hasClientHold = t.reserveHolds.some((h) => h.owner === "CLIENT");
-    const hasFpHold = t.reserveHolds.some((h) => h.owner === "FOUNDAPAY");
+    const hasClientHold = t.reserveHolds.some((h) => h.direction === "CLIENT_HELD" || h.direction === "FP_FRONTED");
+    const hasFpHold = t.reserveHolds.some((h) => h.direction === "FP_OWN");
 
     if (Number(t.merchantReserveAmount) > 0 && !hasClientHold) {
       await prisma.reserveHold.create({
         data: {
           transactionId: t.id,
           merchantId: t.merchantId,
-          owner: "CLIENT",
+          // Backfilled rows predate direction tracking entirely -- default
+          // to CLIENT_HELD, the historical behavior before this feature.
+          direction: "CLIENT_HELD",
           originalAmount: t.merchantReserveAmount,
           heldSince: t.transactionDate,
           createdById: user.id,
@@ -52,7 +54,7 @@ async function main() {
         data: {
           transactionId: t.id,
           merchantId: t.merchantId,
-          owner: "FOUNDAPAY",
+          direction: "FP_OWN",
           originalAmount: t.fpReserveAmount,
           heldSince: t.transactionDate,
           createdById: user.id,

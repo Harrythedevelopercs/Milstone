@@ -25,6 +25,9 @@ export async function createClient(input: unknown): Promise<ActionResult> {
         email: parsed.data.email || null,
         phone: parsed.data.phone || null,
         notes: parsed.data.notes || null,
+        defaultReserveType: parsed.data.defaultReserveType || null,
+        defaultReserveValue: parsed.data.defaultReserveValue || null,
+        defaultReserveDirection: parsed.data.defaultReserveDirection || null,
       },
     });
     await writeAuditLog(prisma, {
@@ -59,6 +62,9 @@ export async function updateClient(id: string, input: unknown): Promise<ActionRe
         email: parsed.data.email || null,
         phone: parsed.data.phone || null,
         notes: parsed.data.notes || null,
+        defaultReserveType: parsed.data.defaultReserveType || null,
+        defaultReserveValue: parsed.data.defaultReserveValue || null,
+        defaultReserveDirection: parsed.data.defaultReserveDirection || null,
       },
     });
     await writeAuditLog(prisma, {

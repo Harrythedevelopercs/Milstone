@@ -95,13 +95,20 @@ export default async function TransactionsPage({
           merchant: { select: { name: true } },
           paymentMethod: { select: { name: true } },
           createdBy: { select: { name: true } },
+          reserveHolds: { select: { direction: true } },
         },
       }),
       prisma.transaction.count({ where }),
       prisma.merchant.findMany({
         where: { active: true },
         orderBy: { name: "asc" },
-        select: { id: true, name: true, settlementBankId: true, defaultReservePercent: true },
+        select: {
+          id: true,
+          name: true,
+          settlementBankId: true,
+          defaultReservePercent: true,
+          defaultReserveDirection: true,
+        },
       }),
       prisma.client.findMany({
         where: { status: "ACTIVE" },
@@ -127,6 +134,7 @@ export default async function TransactionsPage({
     name: m.name,
     settlementBankId: m.settlementBankId,
     defaultReservePercent: m.defaultReservePercent.toString(),
+    defaultReserveDirection: m.defaultReserveDirection,
   }));
   const closedMonthSet = new Set(closedMonths.map((m) => m.accountingMonth));
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -368,6 +376,8 @@ export default async function TransactionsPage({
                           feeBearer: t.feeBearer,
                           merchantFeeManual: t.merchantFeeManual?.toString() ?? null,
                           merchantReservePercent: t.merchantReservePercent.toString(),
+                          merchantReserveDirection:
+                            t.reserveHolds.find((h) => h.direction !== "FP_OWN")?.direction ?? "CLIENT_HELD",
                           fpReservePercent: t.fpReservePercent.toString(),
                           documentUrl: t.documentUrl,
                           notes: t.notes,

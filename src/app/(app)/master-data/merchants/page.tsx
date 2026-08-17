@@ -52,6 +52,7 @@ export default async function MerchantsPage() {
     perTxnLimit: m.perTxnLimit?.toString() ?? null,
     settlementCycle: m.settlementCycle,
     defaultReservePercent: m.defaultReservePercent.toString(),
+    defaultReserveDirection: m.defaultReserveDirection,
     active: m.active,
     company: m.company,
     feeRules: m.feeRules.map((f) => ({

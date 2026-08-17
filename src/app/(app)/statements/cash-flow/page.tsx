@@ -24,6 +24,7 @@ const SOURCE_LABEL: Record<string, string> = {
   PRODUCT_SERVICE_SALE: "Product/Service Sales",
   MONTH_CLOSE: "Payroll / Distributions",
   MANUAL: "Manual (drawings, other)",
+  RESERVE: "Reserve Releases/Settlements",
 };
 
 export default async function CashFlowPage({
