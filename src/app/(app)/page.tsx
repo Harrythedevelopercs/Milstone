@@ -14,26 +14,11 @@ export default async function HomePage({
   const { month } = await searchParams;
   const accountingMonth = month && /^\d{4}-\d{2}$/.test(month) ? month : format(new Date(), "yyyy-MM");
 
-  if (user.role === "EMPLOYEE") {
-    return (
-      <div className="mx-auto max-w-2xl">
-        <Card>
-          <CardHeader>
-            <CardTitle>Welcome, {user.name}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Use &quot;Submit Transaction&quot; above to enter new transactions and check on your submissions.
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex items-end justify-between">
         <h1 className="text-xl font-semibold">
-          {user.role === "OWNER" ? "Management Dashboard" : "Accountant Dashboard"}
+          {user.role === "ACCOUNTANT" ? "Accountant Dashboard" : "Management Dashboard"}
         </h1>
         <form method="get" className="flex items-center gap-2">
           <label htmlFor="month" className="text-sm text-muted-foreground">
@@ -54,10 +39,10 @@ export default async function HomePage({
 
       <NeedsAttentionSection />
 
-      {user.role === "OWNER" ? (
-        <OwnerDashboard accountingMonth={accountingMonth} />
-      ) : (
+      {user.role === "ACCOUNTANT" ? (
         <AccountantDashboard accountingMonth={accountingMonth} />
+      ) : (
+        <OwnerDashboard accountingMonth={accountingMonth} />
       )}
     </div>
   );

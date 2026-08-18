@@ -29,7 +29,7 @@ export default async function MonthClosePage({
         accountingMonth={accountingMonth}
         items={items}
         status={monthClose?.status ?? "OPEN"}
-        canReopen={user.role === "OWNER"}
+        canReopen={user.role === "OWNER" || user.role === "EMPLOYEE"}
         closedInfo={
           monthClose?.status === "CLOSED" && monthClose.closedBy && monthClose.closedAt
             ? { by: monthClose.closedBy.name, at: format(monthClose.closedAt, "yyyy-MM-dd HH:mm") }

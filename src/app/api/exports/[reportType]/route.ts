@@ -4,10 +4,11 @@ import { REPORT_REGISTRY } from "@/lib/exports/registry";
 import { renderPdf } from "@/lib/exports/pdf";
 import { renderExcel } from "@/lib/exports/excel";
 
-// Every report on this route belongs to a route group already gated to
-// OWNER/ACCOUNTANT at the page level (see each section's layout.tsx) --
-// this check keeps the API route itself equally restricted.
-const ALLOWED_ROLES = ["OWNER", "ACCOUNTANT"];
+// Every report on this route belongs to a route group already gated at the
+// page level (see each section's layout.tsx, and rbac.ts for why EMPLOYEE
+// passes every one of those gates too) -- this check keeps the API route
+// itself equally accessible.
+const ALLOWED_ROLES = ["OWNER", "ACCOUNTANT", "EMPLOYEE"];
 
 function slugify(title: string) {
   return title

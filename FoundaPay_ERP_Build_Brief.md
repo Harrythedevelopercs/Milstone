@@ -33,6 +33,10 @@ irreversible product decisions, but don't re-interview me on anything already sp
 - **Employee** (Fardeen, Farrukh, others): operational entry screen ONLY — submit
   transactions with client/date/method/gross/merchant/reference/notes/proof. They see only
   their own submissions and status. No ledgers, no economics.
+  - **Superseded 2026-08-18**: Employees now have the same full access as Owner across the
+    whole app (every page, every feature, all financial data), by explicit decision. See
+    "Future Features" below — granular per-user role/permission control is planned via an
+    Admin Module, not yet built.
 
 ## 4. Data model (entities)
 Master data: Clients, ClientRateHistory (effective-dated: client+method+fromDate+toDate+rate+feeBasis),
@@ -146,3 +150,9 @@ transactions. I'll provide the file. Build an importer/seed I can re-run.
 11. Month close / lock / reopen.
 
 Start with step 1 now. After scaffolding, show me the schema before generating all the CRUD.
+
+## 10. Future Features (planned, not yet built)
+- **Admin Module + User Management** (added 2026-08-18): a screen for managing users —
+  create/deactivate logins, assign granular per-user roles/permissions, and control who sees
+  what (rather than the current all-or-nothing role model). Recorded as a TODO only; not to
+  be built until explicitly requested.
