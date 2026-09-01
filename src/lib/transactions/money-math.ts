@@ -8,7 +8,19 @@ function pct(value: Decimal.Value): Decimal {
   return new Decimal(value).div(100);
 }
 
-// PERCENTAGE (default): gross * rate% if Gross; (gross - merchantFee) * rate%
+// Gross minus the merchant's processing fee -- the base FP's fee is
+// calculated on when feeBasis is AFTER_MERCHANT_CHARGES. Equals gross
+// itself when feeBasis is GROSS (nothing netted out), but this function
+// always returns the true net figure regardless of feeBasis, for display
+// (the "Net Amount Received" field) independent of which base is chosen.
+export function calculateNetAmountReceived(
+  gross: Decimal.Value,
+  merchantFee: Decimal.Value
+): Decimal {
+  return new Decimal(gross).minus(merchantFee);
+}
+
+// PERCENTAGE (default): gross * rate% if Gross; netAmountReceived * rate%
 // if After Merchant Charges -- the client's configured rate, unchanged from
 // before charge types existed. FIXED: the entered dollar amount, verbatim,
 // independent of gross/merchantFee. NONE: no FP fee at all.
@@ -22,10 +34,9 @@ export function calculateFpFee(
 ): Decimal {
   if (chargeType === "NONE") return new Decimal(0);
   if (chargeType === "FIXED") return new Decimal(fixedChargeAmount ?? 0);
-  const g = new Decimal(gross);
   const rate = pct(ratePercent);
-  if (feeBasis === "GROSS") return g.mul(rate);
-  return g.minus(merchantFee).mul(rate);
+  const base = feeBasis === "GROSS" ? new Decimal(gross) : calculateNetAmountReceived(gross, merchantFee);
+  return base.mul(rate);
 }
 
 export function calculateMerchantFeeFromRule(

@@ -28,6 +28,7 @@ export async function createClient(input: unknown): Promise<ActionResult> {
         defaultReserveType: parsed.data.defaultReserveType || null,
         defaultReserveValue: parsed.data.defaultReserveValue || null,
         defaultReserveDirection: parsed.data.defaultReserveDirection || null,
+        defaultFeeBasis: parsed.data.defaultFeeBasis || null,
       },
     });
     await writeAuditLog(prisma, {
@@ -65,6 +66,7 @@ export async function updateClient(id: string, input: unknown): Promise<ActionRe
         defaultReserveType: parsed.data.defaultReserveType || null,
         defaultReserveValue: parsed.data.defaultReserveValue || null,
         defaultReserveDirection: parsed.data.defaultReserveDirection || null,
+        defaultFeeBasis: parsed.data.defaultFeeBasis || null,
       },
     });
     await writeAuditLog(prisma, {

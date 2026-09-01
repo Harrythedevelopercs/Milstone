@@ -14,6 +14,10 @@ export const clientSchema = z.object({
     .trim()
     .refine((v) => v === "" || (!Number.isNaN(Number(v)) && Number(v) >= 0), { message: "Must be a positive number" }),
   defaultReserveDirection: z.enum(["CLIENT_HELD", "FP_FRONTED", "FP_OWN", ""]),
+  // This client's default fee basis for FP fee/net payout calculations --
+  // "" means no override, falls through to the System Settings global
+  // default. Always overridable per transaction.
+  defaultFeeBasis: z.enum(["GROSS", "AFTER_MERCHANT_CHARGES", ""]),
 });
 
 export type ClientFormValues = z.infer<typeof clientSchema>;

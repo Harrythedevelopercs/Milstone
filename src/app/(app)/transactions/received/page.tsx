@@ -307,6 +307,8 @@ export default async function ReceivedTransactionsPage({
               <TableHead>Method</TableHead>
               <TableHead>Submitted by</TableHead>
               <TableHead className="text-right">Gross</TableHead>
+              <TableHead>Fee Basis</TableHead>
+              <TableHead className="text-right">Net Amount Received</TableHead>
               <TableHead className="text-right">FP Rate</TableHead>
               <TableHead className="text-right">FP Fee</TableHead>
               <TableHead className="text-right">Merchant Fee</TableHead>
@@ -322,7 +324,7 @@ export default async function ReceivedTransactionsPage({
           </TableHeader>
           <TableBody>
             {transactions.length === 0 ? (
-              <EmptyTableRow colSpan={18} message="No transactions match these filters." />
+              <EmptyTableRow colSpan={20} message="No transactions match these filters." />
             ) : (
               transactions.map((t) => (
                 <TableRow key={t.id}>
@@ -333,6 +335,10 @@ export default async function ReceivedTransactionsPage({
                   <TableCell>{t.paymentMethod.name}</TableCell>
                   <TableCell>{t.createdBy.name}</TableCell>
                   <TableCell className="text-right">{t.grossAmount.toString()}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {t.feeBasis === "AFTER_MERCHANT_CHARGES" ? "Net" : "Gross"}
+                  </TableCell>
+                  <TableCell className="text-right">{t.netAmountReceived.toString()}</TableCell>
                   <TableCell className="text-right">
                     {t.chargeType === "FIXED"
                       ? "Fixed"
@@ -373,6 +379,7 @@ export default async function ReceivedTransactionsPage({
                           expectedBankId: t.expectedBankId,
                           paymentMethodId: t.paymentMethodId,
                           grossAmount: t.grossAmount.toString(),
+                          feeBasis: t.feeBasis,
                           chargeType: t.chargeType,
                           fixedChargeAmount: t.fixedChargeAmount?.toString() ?? null,
                           feeBearer: t.feeBearer,

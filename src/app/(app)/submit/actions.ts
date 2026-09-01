@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/rbac";
 import { createTransactionCore } from "@/lib/transactions/create-transaction-core";
+import { getDefaultFeeBasis, resolveFeeBasis } from "@/lib/transactions/fee-basis";
 import { employeeTransactionSchema } from "./schema";
 
 export type SubmitTransactionResult = { ok: true; id: string } | { ok: false; error: string };
@@ -18,11 +19,22 @@ export async function submitTransaction(input: unknown): Promise<SubmitTransacti
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const d = parsed.data;
 
-  const paymentMethod = await prisma.paymentMethod.findUnique({ where: { id: d.paymentMethodId } });
+  const [paymentMethod, client, systemDefaultFeeBasis] = await Promise.all([
+    prisma.paymentMethod.findUnique({ where: { id: d.paymentMethodId } }),
+    prisma.client.findUnique({ where: { id: d.clientId } }),
+    getDefaultFeeBasis(),
+  ]);
   if (!paymentMethod || paymentMethod.status !== "ACTIVE") {
     return { ok: false, error: "Payment method not found or inactive." };
   }
   const isDirect = !paymentMethod.requiresMerchant;
+  // Economics stay invisible to the submitter -- resolve client default >
+  // System Settings global default silently, same precedence as the
+  // accountant's form minus the per-transaction override (not exposed here).
+  const feeBasis = resolveFeeBasis({
+    clientDefault: client?.defaultFeeBasis,
+    systemDefault: systemDefaultFeeBasis,
+  });
 
   let expectedBankId: string;
   let merchantReservePercent = "0";
@@ -34,10 +46,7 @@ export async function submitTransaction(input: unknown): Promise<SubmitTransacti
     expectedBankId = bankAccount.id;
   } else {
     if (!d.merchantId) return { ok: false, error: "Merchant is required." };
-    const [merchant, client] = await Promise.all([
-      prisma.merchant.findUnique({ where: { id: d.merchantId } }),
-      prisma.client.findUnique({ where: { id: d.clientId } }),
-    ]);
+    const merchant = await prisma.merchant.findUnique({ where: { id: d.merchantId } });
     if (!merchant || !merchant.active) {
       return { ok: false, error: "Merchant not found or inactive." };
     }
@@ -59,6 +68,7 @@ export async function submitTransaction(input: unknown): Promise<SubmitTransacti
     expectedBankId,
     paymentMethodId: d.paymentMethodId,
     grossAmount: d.grossAmount,
+    feeBasis,
     feeBearer: "CLIENT",
     merchantFeeManual: null,
     merchantReservePercent,

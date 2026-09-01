@@ -38,6 +38,12 @@ const RESERVE_DIRECTION_ITEMS = [
   { value: "FP_OWN", label: "FoundaPay-owned" },
 ];
 
+const FEE_BASIS_ITEMS = [
+  { value: "none", label: "No default (falls back to System Settings)" },
+  { value: "GROSS", label: "Gross (before merchant charges)" },
+  { value: "AFTER_MERCHANT_CHARGES", label: "Net (after merchant charges)" },
+];
+
 export function ClientForm({
   defaultValues,
   editingId,
@@ -201,6 +207,43 @@ export function ClientForm({
                   </FormControl>
                   <SelectContent>
                     {RESERVE_DIRECTION_ITEMS.map((i) => (
+                      <SelectItem key={i.value} value={i.value}>
+                        {i.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="space-y-4 rounded-md border p-3">
+          <p className="text-sm font-medium">Default fee basis</p>
+          <FormDescription>
+            What FoundaPay&apos;s fee (and this client&apos;s net payout) is calculated on for
+            their transactions -- gross, or net of merchant charges. Takes priority over the
+            System Settings global default; always overridable per transaction.
+          </FormDescription>
+          <FormField
+            control={form.control}
+            name="defaultFeeBasis"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel hint="Gross: FP's fee and this client's net payout are calculated on the full gross amount. Net: calculated on gross minus merchant charges. Leave as 'no default' to fall back to the System Settings global default.">Fee basis</FormLabel>
+                <Select
+                  value={field.value || "none"}
+                  onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
+                  items={FEE_BASIS_ITEMS}
+                >
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {FEE_BASIS_ITEMS.map((i) => (
                       <SelectItem key={i.value} value={i.value}>
                         {i.label}
                       </SelectItem>

@@ -36,6 +36,7 @@ export type ClientOption = {
   defaultReserveType?: "PERCENT" | "FIXED" | null;
   defaultReserveValue?: string | null;
   defaultReserveDirection?: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN" | null;
+  defaultFeeBasis?: "GROSS" | "AFTER_MERCHANT_CHARGES" | null;
 };
 export type MerchantOption = {
   id: string;
@@ -64,6 +65,11 @@ const CHARGE_TYPE_ITEMS = [
   { value: "NONE", label: "No charge" },
 ];
 
+const FEE_BASIS_ITEMS = [
+  { value: "GROSS", label: "Gross (before merchant charges)" },
+  { value: "AFTER_MERCHANT_CHARGES", label: "Net (after merchant charges)" },
+];
+
 export function TransactionForm({
   clients,
   merchants,
@@ -73,6 +79,7 @@ export function TransactionForm({
   defaultValues: providedDefaultValues,
   onSuccess,
   hideChrome = false,
+  systemDefaultFeeBasis = "GROSS",
 }: {
   clients: ClientOption[];
   merchants: MerchantOption[];
@@ -82,6 +89,7 @@ export function TransactionForm({
   defaultValues?: TransactionFormValues;
   onSuccess?: () => void;
   hideChrome?: boolean;
+  systemDefaultFeeBasis?: "GROSS" | "AFTER_MERCHANT_CHARGES";
 }) {
   const router = useRouter();
   const { run, isPending } = useCrudAction();
@@ -95,6 +103,7 @@ export function TransactionForm({
       expectedBankId: "",
       paymentMethodId: "",
       grossAmount: "",
+      feeBasis: systemDefaultFeeBasis,
       chargeType: "PERCENTAGE",
       fixedChargeAmount: "",
       feeBearer: "CLIENT",
@@ -114,8 +123,30 @@ export function TransactionForm({
   const paymentMethodId = form.watch("paymentMethodId");
   const chargeType = form.watch("chargeType");
   const grossAmount = form.watch("grossAmount");
+  const merchantFeeManual = form.watch("merchantFeeManual");
   const selectedPaymentMethod = paymentMethods.find((m) => m.id === paymentMethodId);
   const isDirect = !!selectedPaymentMethod && !selectedPaymentMethod.requiresMerchant;
+  const selectedClient = clients.find((c) => c.id === clientId);
+
+  const grossNum = Number(grossAmount) || 0;
+  // Direct-to-bank methods never have a merchant fee; for merchant-based
+  // methods, an explicit manual entry is exact, otherwise this is only a
+  // preview -- the actual fee falls back to the merchant's fee rule at save
+  // time, which isn't known client-side.
+  const previewMerchantFee = isDirect ? 0 : Number(merchantFeeManual) || 0;
+  const netAmountReceivedPreview = (grossNum - previewMerchantFee).toFixed(2);
+
+  // Precedence for the fee basis default: per-transaction override (once the
+  // user touches this field themselves) > this client's default > the
+  // System Settings global default. Re-resolved whenever the client changes
+  // (fee basis doesn't depend on the merchant), same idea as the reserve
+  // default below but kept as its own effect since it has a different
+  // dependency set.
+  useEffect(() => {
+    if (editingId) return; // don't clobber the existing fee basis on edit
+    form.setValue("feeBasis", selectedClient?.defaultFeeBasis ?? systemDefaultFeeBasis);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
 
   // Precedence for the reserve default: per-transaction override (once the
   // user touches these fields themselves) > this client's default > the
@@ -204,6 +235,48 @@ export function TransactionForm({
                   </FormItem>
                 )}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="feeBasis"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel hint="What FoundaPay's fee (and the client's net payout) is calculated on. Gross: the full amount before merchant charges. Net: gross minus merchant charges. Defaults from the client's setting or, if unset, the System Settings global default -- always overridable here.">
+                      Fee basis
+                    </FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange} items={FEE_BASIS_ITEMS}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {FEE_BASIS_ITEMS.map((i) => (
+                          <SelectItem key={i.value} value={i.value}>
+                            {i.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {selectedClient?.defaultFeeBasis
+                        ? "Defaulted from this client's setting. Always overridable per transaction."
+                        : "Defaulted from the System Settings global default (this client has no override). Always overridable per transaction."}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormItem>
+                <FormLabel hint="Gross amount minus merchant charges. This is the base FP's fee is calculated on when Fee basis is Net. If a merchant fee hasn't been entered yet (using the rule default instead), this preview assumes zero merchant fee and the final stored figure may differ once the actual fee rule applies.">
+                  Net amount received (preview)
+                </FormLabel>
+                <FormControl>
+                  <Input value={netAmountReceivedPreview} readOnly disabled className="bg-muted" />
+                </FormControl>
+              </FormItem>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

@@ -23,6 +23,7 @@ export type ClientRow = {
   defaultReserveType: "PERCENT" | "FIXED" | null;
   defaultReserveValue: string | null;
   defaultReserveDirection: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN" | null;
+  defaultFeeBasis: "GROSS" | "AFTER_MERCHANT_CHARGES" | null;
 };
 
 export function ClientsClient({
@@ -67,6 +68,7 @@ export function ClientsClient({
         defaultReserveType: editing.defaultReserveType ?? "",
         defaultReserveValue: editing.defaultReserveValue ?? "",
         defaultReserveDirection: editing.defaultReserveDirection ?? "",
+        defaultFeeBasis: editing.defaultFeeBasis ?? "",
       }
     : {
         name: "",
@@ -77,6 +79,7 @@ export function ClientsClient({
         defaultReserveType: "",
         defaultReserveValue: "",
         defaultReserveDirection: "",
+        defaultFeeBasis: "",
       };
 
   return (

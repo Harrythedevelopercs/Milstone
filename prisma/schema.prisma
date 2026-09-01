@@ -218,6 +218,10 @@ model Client {
   defaultReserveType      ReserveValueType? @map("default_reserve_type")
   defaultReserveValue     Decimal?          @map("default_reserve_value") @db.Decimal(18, 2)
   defaultReserveDirection ReserveDirection? @map("default_reserve_direction")
+  // This client's default fee basis (Gross vs After Merchant Charges) for
+  // FP fee/net payout calculations. Null = no override, falls through to
+  // the System Settings global default. Always overridable per transaction.
+  defaultFeeBasis         FeeBasis?         @map("default_fee_basis")
   createdAt               DateTime          @default(now()) @map("created_at")
   updatedAt               DateTime          @updatedAt @map("updated_at")
 
@@ -565,11 +569,20 @@ model Transaction {
 
   grossAmount Decimal @map("gross_amount") @db.Decimal(18, 2)
 
-  // Rate + fee basis are snapshotted at entry time from ClientRateHistory so a
-  // later rate change never alters an already-posted transaction.
-  fpRatePercent Decimal  @map("fp_rate_percent") @db.Decimal(5, 2)
-  feeBasis      FeeBasis @map("fee_basis")
-  fpFee         Decimal  @map("fp_fee") @db.Decimal(18, 2)
+  // Rate is snapshotted at entry time from ClientRateHistory so a later rate
+  // change never alters an already-posted transaction. Fee basis is
+  // resolved at entry time from the three-level precedence (per-transaction
+  // override > client default > System Settings global default -- see
+  // src/lib/transactions/fee-basis.ts), NOT from ClientRateHistory.feeBasis
+  // (that field still exists per rate period but no longer drives the
+  // calculation, kept only for historical rate records).
+  fpRatePercent     Decimal  @map("fp_rate_percent") @db.Decimal(5, 2)
+  feeBasis          FeeBasis @map("fee_basis")
+  // Gross minus the merchant's processing fee -- the base FP's fee is
+  // calculated on when feeBasis is AFTER_MERCHANT_CHARGES (equals grossAmount
+  // when feeBasis is GROSS, since nothing is netted out in that case).
+  netAmountReceived Decimal  @map("net_amount_received") @db.Decimal(18, 2)
+  fpFee             Decimal  @map("fp_fee") @db.Decimal(18, 2)
 
   // Defaults to PERCENTAGE (fpRatePercent x feeBasis, the client's configured
   // rate). FIXED overrides fpFee with fixedChargeAmount regardless of gross;

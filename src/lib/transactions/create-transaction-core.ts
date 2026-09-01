@@ -9,9 +9,11 @@ import {
   calculateClientNetPayable,
   calculateExpectedSettlement,
   calculateFpFee,
+  calculateNetAmountReceived,
   calculatePercentAmount,
   calculateMerchantFeeFromRule,
   money,
+  type FeeBasis,
 } from "./money-math";
 
 export type CoreTransactionInput = {
@@ -29,6 +31,11 @@ export type CoreTransactionInput = {
   expectedBankId: string;
   paymentMethodId: string;
   grossAmount: string;
+  // Resolved by the caller via the three-level precedence (per-transaction
+  // override > client default > System Settings global default -- see
+  // src/lib/transactions/fee-basis.ts). Required rather than defaulted here
+  // so every caller resolves it explicitly instead of silently falling back.
+  feeBasis: FeeBasis;
   feeBearer: "FOUNDAPAY" | "CLIENT";
   merchantFeeManual: string | null;
   merchantReservePercent: string;
@@ -141,11 +148,12 @@ export async function createTransactionCore(
   const merchantReserveDirection = input.merchantReserveDirection ?? "CLIENT_HELD";
 
   const chargeType = input.chargeType ?? "PERCENTAGE";
+  const netAmountReceived = calculateNetAmountReceived(gross, merchantFee);
   const fpFee = calculateFpFee(
     gross,
     merchantFee,
     rate.ratePercent,
-    rate.feeBasis,
+    input.feeBasis,
     chargeType,
     input.fixedChargeAmount
   );
@@ -184,7 +192,8 @@ export async function createTransactionCore(
         paymentMethodId: input.paymentMethodId,
         grossAmount: gross,
         fpRatePercent: rate.ratePercent,
-        feeBasis: rate.feeBasis,
+        feeBasis: input.feeBasis,
+        netAmountReceived: money(netAmountReceived),
         fpFee: money(fpFee),
         chargeType,
         fixedChargeAmount: chargeType === "FIXED" ? money(input.fixedChargeAmount ?? 0) : null,

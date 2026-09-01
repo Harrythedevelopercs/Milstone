@@ -23,6 +23,7 @@ export const transactionSchema = z.object({
   expectedBankId: z.string().trim().min(1, "Required"),
   paymentMethodId: z.string().trim().min(1, "Required"),
   grossAmount: decimalString("Required"),
+  feeBasis: z.enum(["GROSS", "AFTER_MERCHANT_CHARGES"]),
   chargeType: z.enum(["PERCENTAGE", "FIXED", "NONE"]),
   fixedChargeAmount: optionalDecimalString,
   feeBearer: z.enum(["FOUNDAPAY", "CLIENT"]),

@@ -23,6 +23,7 @@ export type PayoutClientOption = {
   defaultReserveType: "PERCENT" | "FIXED" | null;
   defaultReserveValue: string | null;
   defaultReserveDirection: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN" | null;
+  defaultFeeBasis: "GROSS" | "AFTER_MERCHANT_CHARGES" | null;
 };
 
 export async function getPayoutFormData(): Promise<{
@@ -39,6 +40,7 @@ export async function getPayoutFormData(): Promise<{
         defaultReserveType: true,
         defaultReserveValue: true,
         defaultReserveDirection: true,
+        defaultFeeBasis: true,
       },
     }),
     prisma.transaction.findMany({
@@ -58,6 +60,7 @@ export async function getPayoutFormData(): Promise<{
     defaultReserveType: c.defaultReserveType,
     defaultReserveValue: c.defaultReserveValue?.toString() ?? null,
     defaultReserveDirection: c.defaultReserveDirection,
+    defaultFeeBasis: c.defaultFeeBasis,
   }));
 
   const payable = payableTransactions.map((t) => {

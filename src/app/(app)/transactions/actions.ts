@@ -16,6 +16,7 @@ import {
   calculateExpectedSettlement,
   calculateFpFee,
   calculateMerchantFeeFromRule,
+  calculateNetAmountReceived,
   calculatePercentAmount,
   money,
 } from "@/lib/transactions/money-math";
@@ -43,6 +44,7 @@ export async function createTransaction(input: unknown): Promise<CreateTransacti
     expectedBankId: d.expectedBankId,
     paymentMethodId: d.paymentMethodId,
     grossAmount: d.grossAmount,
+    feeBasis: d.feeBasis,
     chargeType: d.chargeType,
     fixedChargeAmount: d.fixedChargeAmount || null,
     feeBearer: d.feeBearer,
@@ -160,11 +162,12 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
   const merchantFeeSource: "MANUAL" | "RULE_DEFAULT" = merchantFeeManualProvided ? "MANUAL" : "RULE_DEFAULT";
   const merchantReservePercent = isDirect ? "0" : d.merchantReservePercent;
 
+  const netAmountReceived = calculateNetAmountReceived(gross, merchantFee);
   const fpFee = calculateFpFee(
     gross,
     merchantFee,
     rate.ratePercent,
-    rate.feeBasis,
+    d.feeBasis,
     d.chargeType,
     d.fixedChargeAmount
   );
@@ -210,7 +213,8 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
         paymentMethodId: d.paymentMethodId,
         grossAmount: gross,
         fpRatePercent: rate.ratePercent,
-        feeBasis: rate.feeBasis,
+        feeBasis: d.feeBasis,
+        netAmountReceived: money(netAmountReceived),
         fpFee: money(fpFee),
         chargeType: d.chargeType,
         fixedChargeAmount: d.chargeType === "FIXED" ? money(d.fixedChargeAmount || 0) : null,

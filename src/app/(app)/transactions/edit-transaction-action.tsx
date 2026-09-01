@@ -22,6 +22,7 @@ export type EditableTransaction = {
   expectedBankId: string;
   paymentMethodId: string;
   grossAmount: string;
+  feeBasis: "GROSS" | "AFTER_MERCHANT_CHARGES";
   chargeType: "PERCENTAGE" | "FIXED" | "NONE";
   fixedChargeAmount: string | null;
   feeBearer: "FOUNDAPAY" | "CLIENT";
@@ -68,6 +69,7 @@ export function EditTransactionAction({
     expectedBankId: row.expectedBankId,
     paymentMethodId: row.paymentMethodId,
     grossAmount: row.grossAmount,
+    feeBasis: row.feeBasis,
     chargeType: row.chargeType,
     fixedChargeAmount: row.fixedChargeAmount ?? "",
     feeBearer: row.feeBearer,
