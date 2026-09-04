@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import Decimal from "decimal.js";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/rbac";
+import { requireRole, requireUser } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit-log";
 import { createTransactionCore } from "@/lib/transactions/create-transaction-core";
 import { postClientLedgerForTransaction } from "@/lib/transactions/post-ledger";
@@ -21,6 +21,7 @@ import {
 } from "@/lib/transactions/money-math";
 import { getRoundingConfig, roundMoney } from "@/lib/transactions/rounding";
 import { assertMonthOpen } from "@/lib/month-close/guard";
+import { bankAccountLabel, BANK_ACCOUNT_LABEL_SELECT } from "@/lib/bank-account-label";
 import { transactionSchema, rcvSchema, fulfillChargebackSchema } from "./schema";
 import { holdTransactionSchema } from "../reminders/schema";
 
@@ -1181,4 +1182,186 @@ export async function getTransactionHistory(transactionId: string): Promise<Tran
     beforeSnapshot: l.beforeSnapshot,
     afterSnapshot: l.afterSnapshot,
   }));
+}
+
+export type TransactionFullDetail = {
+  id: string;
+  transactionDate: string;
+  accountingMonth: string;
+  clientId: string;
+  clientName: string;
+  clientReference: string | null;
+  merchantId: string | null;
+  merchantName: string | null;
+  expectedBankId: string;
+  expectedBankName: string;
+  paymentMethodId: string;
+  paymentMethodName: string;
+  grossAmount: string;
+  fpRatePercent: string;
+  feeBasis: "GROSS" | "AFTER_MERCHANT_CHARGES";
+  netAmountReceived: string;
+  fpFee: string;
+  chargeType: "PERCENTAGE" | "FIXED" | "NONE";
+  fixedChargeAmount: string | null;
+  merchantFeeManual: string | null;
+  merchantFeeDefault: string | null;
+  merchantFee: string;
+  merchantFeeSource: string;
+  feeBearer: "FOUNDAPAY" | "CLIENT";
+  merchantReservePercent: string;
+  merchantReserveBasis: "GROSS" | "AFTER_MERCHANT_CHARGES";
+  merchantReserveAmount: string;
+  merchantReserveDirection: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN";
+  fpReservePercent: string;
+  fpReserveAmount: string;
+  expectedSettlement: string;
+  actualSettlement: string | null;
+  settlementBatchId: string | null;
+  clientNetPayable: string | null;
+  status: string;
+  settlementDate: string | null;
+  documentUrl: string | null;
+  notes: string | null;
+  customerEmail: string | null;
+  cardLast4: string | null;
+  reviewNotes: string | null;
+  createdByName: string;
+  createdAt: string;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  updatedByName: string | null;
+  updatedAt: string;
+};
+
+export type TransactionDetailBundle = {
+  transaction: TransactionFullDetail;
+  monthOpen: boolean;
+  clients: { id: string; name: string }[];
+  merchants: {
+    id: string;
+    name: string;
+    settlementBankId: string;
+    defaultReservePercent: string;
+    defaultReserveDirection: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN";
+  }[];
+  bankAccounts: { id: string; name: string }[];
+  paymentMethods: { id: string; name: string; requiresMerchant: boolean }[];
+};
+
+// Everything the board's transaction detail dialog needs in one call: the
+// full stored row (every field, not just what a list column shows) plus the
+// same lookup lists the Received page's row actions already use, so Edit
+// works identically whether opened from there or from the board. Read-only
+// -- any authenticated user can view it; each action button underneath
+// (Edit/Settle/Hold/Refund-Chargeback-Void/Delete) still enforces its own
+// role check server-side when actually invoked.
+export async function getTransactionFullDetail(id: string): Promise<TransactionDetailBundle | null> {
+  await requireUser();
+
+  const [txn, clients, merchants, bankAccounts, paymentMethods, closedMonths] = await Promise.all([
+    prisma.transaction.findUnique({
+      where: { id },
+      include: {
+        client: { select: { name: true } },
+        merchant: { select: { name: true } },
+        expectedBank: { select: BANK_ACCOUNT_LABEL_SELECT },
+        paymentMethod: { select: { name: true } },
+        createdBy: { select: { name: true } },
+        approvedBy: { select: { name: true } },
+        updatedBy: { select: { name: true } },
+        reserveHolds: { select: { direction: true } },
+      },
+    }),
+    prisma.client.findMany({ where: { status: "ACTIVE" }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.merchant.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        settlementBankId: true,
+        defaultReservePercent: true,
+        defaultReserveDirection: true,
+      },
+    }),
+    prisma.bankAccount.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      select: BANK_ACCOUNT_LABEL_SELECT,
+    }),
+    prisma.paymentMethod.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, requiresMerchant: true },
+    }),
+    prisma.monthClose.findMany({ where: { status: "CLOSED" }, select: { accountingMonth: true } }),
+  ]);
+  if (!txn) return null;
+
+  const closedMonthSet = new Set(closedMonths.map((m) => m.accountingMonth));
+
+  return {
+    transaction: {
+      id: txn.id,
+      transactionDate: txn.transactionDate.toISOString(),
+      accountingMonth: txn.accountingMonth,
+      clientId: txn.clientId,
+      clientName: txn.client.name,
+      clientReference: txn.clientReference,
+      merchantId: txn.merchantId,
+      merchantName: txn.merchant?.name ?? null,
+      expectedBankId: txn.expectedBankId,
+      expectedBankName: bankAccountLabel(txn.expectedBank),
+      paymentMethodId: txn.paymentMethodId,
+      paymentMethodName: txn.paymentMethod.name,
+      grossAmount: txn.grossAmount.toString(),
+      fpRatePercent: txn.fpRatePercent.toString(),
+      feeBasis: txn.feeBasis,
+      netAmountReceived: txn.netAmountReceived.toString(),
+      fpFee: txn.fpFee.toString(),
+      chargeType: txn.chargeType,
+      fixedChargeAmount: txn.fixedChargeAmount?.toString() ?? null,
+      merchantFeeManual: txn.merchantFeeManual?.toString() ?? null,
+      merchantFeeDefault: txn.merchantFeeDefault?.toString() ?? null,
+      merchantFee: txn.merchantFee.toString(),
+      merchantFeeSource: txn.merchantFeeSource,
+      feeBearer: txn.feeBearer,
+      merchantReservePercent: txn.merchantReservePercent.toString(),
+      merchantReserveBasis: txn.merchantReserveBasis,
+      merchantReserveAmount: txn.merchantReserveAmount.toString(),
+      merchantReserveDirection:
+        txn.reserveHolds.find((h) => h.direction !== "FP_OWN")?.direction ?? "CLIENT_HELD",
+      fpReservePercent: txn.fpReservePercent.toString(),
+      fpReserveAmount: txn.fpReserveAmount.toString(),
+      expectedSettlement: txn.expectedSettlement.toString(),
+      actualSettlement: txn.actualSettlement?.toString() ?? null,
+      settlementBatchId: txn.settlementBatchId,
+      clientNetPayable: txn.clientNetPayable?.toString() ?? null,
+      status: txn.status,
+      settlementDate: txn.settlementDate?.toISOString() ?? null,
+      documentUrl: txn.documentUrl,
+      notes: txn.notes,
+      customerEmail: txn.customerEmail,
+      cardLast4: txn.cardLast4,
+      reviewNotes: txn.reviewNotes,
+      createdByName: txn.createdBy.name,
+      createdAt: txn.createdAt.toISOString(),
+      approvedByName: txn.approvedBy?.name ?? null,
+      approvedAt: txn.approvedAt?.toISOString() ?? null,
+      updatedByName: txn.updatedBy?.name ?? null,
+      updatedAt: txn.updatedAt.toISOString(),
+    },
+    monthOpen: !closedMonthSet.has(txn.accountingMonth),
+    clients,
+    merchants: merchants.map((m) => ({
+      id: m.id,
+      name: m.name,
+      settlementBankId: m.settlementBankId,
+      defaultReservePercent: m.defaultReservePercent.toString(),
+      defaultReserveDirection: m.defaultReserveDirection,
+    })),
+    bankAccounts: bankAccounts.map((a) => ({ id: a.id, name: bankAccountLabel(a) })),
+    paymentMethods,
+  };
 }

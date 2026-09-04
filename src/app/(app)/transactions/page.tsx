@@ -1,55 +1,16 @@
 import Link from "next/link";
-import { format } from "date-fns";
 import Decimal from "decimal.js";
 import { buttonVariants } from "@/components/ui/button";
-import { ToneBadge } from "@/components/ui/tone-badge";
 import { cn } from "@/lib/utils";
-import { statusTone, type StatusTone } from "@/lib/status-tone";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { EmptyTableRow } from "@/components/ui/empty-table-row";
-import { NEEDS_ATTENTION_ROW_CLASS } from "@/lib/status-tone";
+import { Table, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   getUnifiedMoneyMovements,
   MONEY_MOVEMENT_TYPES,
   MONEY_MOVEMENT_TYPE_LABEL,
-  type MoneyMovementRow,
   type MoneyMovementType,
 } from "@/lib/transactions/unified-board";
-
-const RCV_STATUSES = new Set(["OPEN", "RESOLVED", "DISPUTED"]);
-const TRACKING_STATUSES = new Set(["PENDING", "SETTLED"]);
-const TRANSACTION_STATUSES = new Set([
-  "ENTERED", "SUBMITTED", "APPROVED", "PROCESSED", "SETTLED", "CLIENT_PAYABLE",
-  "PARTIALLY_PAID", "PAID", "CLOSED", "HOLD", "RESERVE", "VOID", "REFUNDED",
-  "CHARGEBACK", "DISPUTED", "REJECTED", "DETAILS_REQUESTED",
-]);
-
-// Awaiting-approval statuses for a Received transaction -- the same set the
-// review/approve queue (transactions/received) works through. Not "on hold"
-// (HOLD/RESERVE) or any other in-flight status -- those have already been
-// approved at least once; this is specifically "hasn't been approved yet".
-const PENDING_APPROVAL_STATUSES = new Set(["ENTERED", "SUBMITTED", "DETAILS_REQUESTED"]);
-
-function isPendingApproval(row: MoneyMovementRow): boolean {
-  return row.type === "RECEIVED" && !!row.status && PENDING_APPROVAL_STATUSES.has(row.status);
-}
-
-function rowTone(row: MoneyMovementRow): StatusTone {
-  if (!row.status) return "neutral";
-  if (row.type === "RECEIVED" && TRANSACTION_STATUSES.has(row.status)) return statusTone.transaction(row.status);
-  if ((row.type === "REFUND" || row.type === "CHARGEBACK" || row.type === "VOID") && RCV_STATUSES.has(row.status)) {
-    return statusTone.rcvStatus(row.status);
-  }
-  if (TRACKING_STATUSES.has(row.status)) return row.status === "PENDING" ? "warning" : "success";
-  return "neutral";
-}
+import { isPendingApproval, toClientMoneyMovementRow } from "@/lib/transactions/unified-board-types";
+import { TransactionBoardBody } from "./transaction-board-body";
 
 export default async function TransactionsPage({
   searchParams,
@@ -213,47 +174,14 @@ export default async function TransactionsPage({
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
-              <EmptyTableRow
-                colSpan={5}
-                message={
-                  pendingOnly
-                    ? "No Received transactions are awaiting approval in range."
-                    : "No money movements in range."
-                }
-              />
-            ) : (
-              rows.map((r) => (
-                <TableRow
-                  key={`${r.type}-${r.id}`}
-                  className={isPendingApproval(r) ? NEEDS_ATTENTION_ROW_CLASS : undefined}
-                >
-                  <TableCell>{format(r.date, "yyyy-MM-dd")}</TableCell>
-                  <TableCell>
-                    <Link href={r.href} className="text-sm hover:underline">
-                      {MONEY_MOVEMENT_TYPE_LABEL[r.type]}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="max-w-md truncate text-sm text-muted-foreground" title={r.description}>
-                    {r.description}
-                  </TableCell>
-                  <TableCell
-                    className={cn(
-                      "text-right",
-                      r.amount.greaterThan(0) && "text-emerald-600 dark:text-emerald-400",
-                      r.amount.lessThan(0) && "text-red-600 dark:text-red-400"
-                    )}
-                  >
-                    {r.amount.toFixed(2)}
-                  </TableCell>
-                  <TableCell>
-                    {r.status ? <ToneBadge tone={rowTone(r)}>{r.status.replace(/_/g, " ")}</ToneBadge> : "—"}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
+          <TransactionBoardBody
+            rows={rows.map(toClientMoneyMovementRow)}
+            emptyMessage={
+              pendingOnly
+                ? "No Received transactions are awaiting approval in range."
+                : "No money movements in range."
+            }
+          />
         </Table>
       </div>
     </div>

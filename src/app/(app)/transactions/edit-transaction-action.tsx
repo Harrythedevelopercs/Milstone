@@ -44,6 +44,7 @@ export function EditTransactionAction({
   merchants,
   bankAccounts,
   paymentMethods,
+  onSuccess,
 }: {
   row: EditableTransaction;
   monthOpen: boolean;
@@ -51,6 +52,7 @@ export function EditTransactionAction({
   merchants: MerchantOption[];
   bankAccounts: BankOption[];
   paymentMethods: PaymentMethodOption[];
+  onSuccess?: () => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -105,7 +107,10 @@ export function EditTransactionAction({
           merchants={merchants}
           bankAccounts={bankAccounts}
           paymentMethods={paymentMethods}
-          onSuccess={() => setOpen(false)}
+          onSuccess={() => {
+            setOpen(false);
+            onSuccess?.();
+          }}
           hideChrome
         />
       </CrudSheet>

@@ -14,7 +14,15 @@ import {
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { approveTransaction, rejectTransaction, requestTransactionDetails } from "./actions";
 
-export function ReviewActions({ id, status }: { id: string; status: string }) {
+export function ReviewActions({
+  id,
+  status,
+  onSuccess,
+}: {
+  id: string;
+  status: string;
+  onSuccess?: () => void;
+}) {
   const { run, isPending } = useCrudAction();
   const [dialog, setDialog] = useState<"reject" | "details" | null>(null);
   const [reason, setReason] = useState("");
@@ -22,7 +30,7 @@ export function ReviewActions({ id, status }: { id: string; status: string }) {
   if (status !== "SUBMITTED" && status !== "DETAILS_REQUESTED") return null;
 
   function approve() {
-    run(() => approveTransaction(id), { successMessage: "Approved" });
+    run(() => approveTransaction(id), { successMessage: "Approved", onSuccess });
   }
 
   function submitDialog() {
@@ -32,6 +40,7 @@ export function ReviewActions({ id, status }: { id: string; status: string }) {
         onSuccess: () => {
           setDialog(null);
           setReason("");
+          onSuccess?.();
         },
       });
     } else if (dialog === "details") {
@@ -40,6 +49,7 @@ export function ReviewActions({ id, status }: { id: string; status: string }) {
         onSuccess: () => {
           setDialog(null);
           setReason("");
+          onSuccess?.();
         },
       });
     }

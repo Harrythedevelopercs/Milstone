@@ -5,47 +5,18 @@ import { prisma } from "@/lib/prisma";
 // common shape, purely for display/filtering -- it changes no money math
 // and posts nothing. Each source keeps its own dedicated page/model; this
 // is just the "everything, one list" view layered on top.
-export const MONEY_MOVEMENT_TYPES = [
-  "RECEIVED",
-  "PAYOUT",
-  "TRANSFER",
-  "EXPENSE",
-  "REFUND",
-  "CHARGEBACK",
-  "VOID",
-  "THIRD_PARTY_SETTLEMENT",
-  "SALARY",
-  "COMMISSION",
-  "PARTNER_DISTRIBUTION",
-  "PRODUCT_SERVICE_SALE",
-] as const;
-
-export type MoneyMovementType = (typeof MONEY_MOVEMENT_TYPES)[number];
-
-export const MONEY_MOVEMENT_TYPE_LABEL: Record<MoneyMovementType, string> = {
-  RECEIVED: "Received",
-  PAYOUT: "Payout",
-  TRANSFER: "Internal Transfer",
-  EXPENSE: "Expense",
-  REFUND: "Refund",
-  CHARGEBACK: "Chargeback",
-  VOID: "Void",
-  THIRD_PARTY_SETTLEMENT: "Third-Party Settlement",
-  SALARY: "Salary Disbursement",
-  COMMISSION: "Commission (Employee-Partner)",
-  PARTNER_DISTRIBUTION: "Partner Distribution",
-  PRODUCT_SERVICE_SALE: "Product/Service Sale",
-};
-
-export type MoneyMovementRow = {
-  id: string;
-  type: MoneyMovementType;
-  date: Date;
-  description: string;
-  amount: Decimal;
-  status: string | null;
-  href: string;
-};
+//
+// The shared types/constants live in unified-board-types.ts (re-exported
+// below for existing server-side importers) so a "use client" component can
+// import just the labels without pulling prisma (imported above) into its
+// browser bundle.
+export {
+  MONEY_MOVEMENT_TYPES,
+  MONEY_MOVEMENT_TYPE_LABEL,
+  type MoneyMovementType,
+  type MoneyMovementRow,
+} from "./unified-board-types";
+import type { MoneyMovementType, MoneyMovementRow } from "./unified-board-types";
 
 export async function getUnifiedMoneyMovements(params: {
   from?: Date | null;

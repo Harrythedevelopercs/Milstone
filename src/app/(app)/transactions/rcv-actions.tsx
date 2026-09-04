@@ -51,7 +51,15 @@ const DIALOG_COPY: Record<"REFUND" | "CHARGEBACK" | "VOID", { title: string; des
   },
 };
 
-export function RcvActions({ id, status }: { id: string; status: string }) {
+export function RcvActions({
+  id,
+  status,
+  onSuccess,
+}: {
+  id: string;
+  status: string;
+  onSuccess?: () => void;
+}) {
   const { run, isPending } = useCrudAction();
   const [dialog, setDialog] = useState<"REFUND" | "CHARGEBACK" | "VOID" | null>(null);
   const [eventDate, setEventDate] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -80,7 +88,10 @@ export function RcvActions({ id, status }: { id: string; status: string }) {
         }),
       {
         successMessage: `${dialog.charAt(0)}${dialog.slice(1).toLowerCase()} recorded`,
-        onSuccess: () => setDialog(null),
+        onSuccess: () => {
+          setDialog(null);
+          onSuccess?.();
+        },
       }
     );
   }

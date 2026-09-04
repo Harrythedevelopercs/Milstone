@@ -15,7 +15,15 @@ import {
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { markTransactionSettled } from "./actions";
 
-export function MarkSettledAction({ id, status }: { id: string; status: string }) {
+export function MarkSettledAction({
+  id,
+  status,
+  onSuccess,
+}: {
+  id: string;
+  status: string;
+  onSuccess?: () => void;
+}) {
   const { run, isPending } = useCrudAction();
   const [open, setOpen] = useState(false);
   const [settlementDate, setSettlementDate] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -25,7 +33,10 @@ export function MarkSettledAction({ id, status }: { id: string; status: string }
   function submit() {
     run(() => markTransactionSettled(id, settlementDate), {
       successMessage: "Marked settled",
-      onSuccess: () => setOpen(false),
+      onSuccess: () => {
+        setOpen(false);
+        onSuccess?.();
+      },
     });
   }
 

@@ -18,7 +18,15 @@ import { holdTransaction, releaseHold } from "./actions";
 
 const HOLDABLE = new Set(["APPROVED", "SETTLED", "CLIENT_PAYABLE", "PARTIALLY_PAID"]);
 
-export function HoldAction({ id, status }: { id: string; status: string }) {
+export function HoldAction({
+  id,
+  status,
+  onSuccess,
+}: {
+  id: string;
+  status: string;
+  onSuccess?: () => void;
+}) {
   const { run, isPending } = useCrudAction();
   const [open, setOpen] = useState(false);
   const [expectedSettlementDate, setExpectedSettlementDate] = useState(
@@ -32,7 +40,7 @@ export function HoldAction({ id, status }: { id: string; status: string }) {
         size="sm"
         variant="outline"
         disabled={isPending}
-        onClick={() => run(() => releaseHold(id), { successMessage: "Hold released" })}
+        onClick={() => run(() => releaseHold(id), { successMessage: "Hold released", onSuccess })}
       >
         {isPending ? "Releasing..." : "Release Hold"}
       </Button>
@@ -44,7 +52,10 @@ export function HoldAction({ id, status }: { id: string; status: string }) {
   function submit() {
     run(() => holdTransaction(id, { expectedSettlementDate, note }), {
       successMessage: "Transaction held, reminder set",
-      onSuccess: () => setOpen(false),
+      onSuccess: () => {
+        setOpen(false);
+        onSuccess?.();
+      },
     });
   }
 
