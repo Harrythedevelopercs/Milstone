@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/rbac";
+import { requireRole, requireUser } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit-log";
 import { accountingMonthOf } from "@/lib/transactions/transaction-id";
 import { assertMonthOpen } from "@/lib/month-close/guard";
+import { resolveUserNames } from "@/lib/user-names";
 import type { ActionResult } from "@/lib/action-result";
 import { commissionPaymentSchema } from "./schema";
 
@@ -77,4 +78,42 @@ export async function recordCommissionPayment(employeeId: string, input: unknown
   revalidatePath("/employee-partner-ledger");
   revalidatePath("/cash-position");
   return { ok: true };
+}
+
+export type CommissionFullDetail = {
+  id: string;
+  employeeName: string;
+  entryDate: string;
+  accountingMonth: string;
+  amount: string;
+  kind: string;
+  sourceType: string;
+  transactionId: string | null;
+  description: string | null;
+  createdByName: string;
+  createdAt: string;
+};
+
+export async function getCommissionFullDetail(id: string): Promise<CommissionFullDetail | null> {
+  await requireUser();
+  const c = await prisma.employeePartnerLedger.findUnique({
+    where: { id },
+    include: { employee: { select: { name: true } } },
+  });
+  if (!c) return null;
+  const names = await resolveUserNames([c.createdById]);
+
+  return {
+    id: c.id,
+    employeeName: c.employee.name,
+    entryDate: c.entryDate.toISOString(),
+    accountingMonth: c.accountingMonth,
+    amount: c.amount.toString(),
+    kind: c.kind,
+    sourceType: c.sourceType,
+    transactionId: c.transactionId,
+    description: c.description,
+    createdByName: names.get(c.createdById) ?? "—",
+    createdAt: c.createdAt.toISOString(),
+  };
 }

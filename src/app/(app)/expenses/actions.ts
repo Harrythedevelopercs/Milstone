@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/rbac";
+import { requireRole, requireUser } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit-log";
 import { postBankLedgerEntry } from "@/lib/ledger/post-bank-ledger";
 import { accountingMonthOf } from "@/lib/transactions/transaction-id";
 import { assertMonthOpen } from "@/lib/month-close/guard";
+import { resolveUserNames } from "@/lib/user-names";
 import type { ActionResult } from "@/lib/action-result";
 import { expenseSchema } from "./schema";
 
@@ -128,4 +129,73 @@ export async function markExpenseSettled(id: string): Promise<ActionResult> {
   });
   revalidatePath("/expenses");
   return { ok: true };
+}
+
+export type ExpenseFullDetail = {
+  id: string;
+  categoryName: string;
+  vendorName: string | null;
+  companyName: string | null;
+  businessUnitName: string | null;
+  bankAccountName: string;
+  amount: string;
+  currency: string;
+  expenseDate: string;
+  accountingMonth: string;
+  description: string | null;
+  recurring: boolean;
+  status: string;
+  documentUrl: string | null;
+  feeBearer: string;
+  clientName: string | null;
+  settlementStatus: string;
+  settledAt: string | null;
+  settledByName: string | null;
+  createdByName: string;
+  createdAt: string;
+  approvedByName: string | null;
+  approvedAt: string | null;
+};
+
+export async function getExpenseFullDetail(id: string): Promise<ExpenseFullDetail | null> {
+  await requireUser();
+  const e = await prisma.expense.findUnique({
+    where: { id },
+    include: {
+      expenseCategory: { select: { name: true } },
+      vendor: { select: { name: true } },
+      company: { select: { name: true } },
+      businessUnit: { select: { name: true } },
+      bankAccount: { select: { name: true } },
+      client: { select: { name: true } },
+    },
+  });
+  if (!e) return null;
+  const names = await resolveUserNames([e.createdById, e.settledById, e.approvedById]);
+
+  return {
+    id: e.id,
+    categoryName: e.expenseCategory.name,
+    vendorName: e.vendor?.name ?? null,
+    companyName: e.company?.name ?? null,
+    businessUnitName: e.businessUnit?.name ?? null,
+    bankAccountName: e.bankAccount.name,
+    amount: e.amount.toString(),
+    currency: e.currency,
+    expenseDate: e.expenseDate.toISOString(),
+    accountingMonth: e.accountingMonth,
+    description: e.description,
+    recurring: e.recurring,
+    status: e.status,
+    documentUrl: e.documentUrl,
+    feeBearer: e.feeBearer,
+    clientName: e.client?.name ?? null,
+    settlementStatus: e.settlementStatus,
+    settledAt: e.settledAt?.toISOString() ?? null,
+    settledByName: e.settledById ? (names.get(e.settledById) ?? null) : null,
+    createdByName: names.get(e.createdById) ?? "—",
+    createdAt: e.createdAt.toISOString(),
+    approvedByName: e.approvedById ? (names.get(e.approvedById) ?? null) : null,
+    approvedAt: e.approvedAt?.toISOString() ?? null,
+  };
 }

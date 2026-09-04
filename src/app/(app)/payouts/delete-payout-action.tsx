@@ -14,7 +14,15 @@ import {
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { deleteClientPayout } from "./actions";
 
-export function DeletePayoutAction({ id, monthOpen }: { id: string; monthOpen: boolean }) {
+export function DeletePayoutAction({
+  id,
+  monthOpen,
+  onSuccess,
+}: {
+  id: string;
+  monthOpen: boolean;
+  onSuccess?: () => void;
+}) {
   const { run, isPending } = useCrudAction();
   const [open, setOpen] = useState(false);
 
@@ -29,7 +37,10 @@ export function DeletePayoutAction({ id, monthOpen }: { id: string; monthOpen: b
   function submit() {
     run(() => deleteClientPayout(id), {
       successMessage: "Payout deleted",
-      onSuccess: () => setOpen(false),
+      onSuccess: () => {
+        setOpen(false);
+        onSuccess?.();
+      },
     });
   }
 

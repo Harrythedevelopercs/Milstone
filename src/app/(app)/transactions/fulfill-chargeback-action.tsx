@@ -29,9 +29,11 @@ export type BankOption = { id: string; name: string };
 export function FulfillChargebackAction({
   rcvId,
   bankAccounts,
+  onSuccess,
 }: {
   rcvId: string;
   bankAccounts: BankOption[];
+  onSuccess?: () => void;
 }) {
   const { run, isPending } = useCrudAction();
   const [open, setOpen] = useState(false);
@@ -42,7 +44,13 @@ export function FulfillChargebackAction({
   function submit() {
     run(
       () => fulfillChargeback(rcvId, { fulfillmentDate, fulfillmentBankAccountId, notes }),
-      { successMessage: "Chargeback marked fulfilled", onSuccess: () => setOpen(false) }
+      {
+        successMessage: "Chargeback marked fulfilled",
+        onSuccess: () => {
+          setOpen(false);
+          onSuccess?.();
+        },
+      }
     );
   }
 

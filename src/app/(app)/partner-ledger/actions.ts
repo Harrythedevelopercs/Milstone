@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/rbac";
+import { requireRole, requireUser } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit-log";
 import { accountingMonthOf } from "@/lib/transactions/transaction-id";
 import { assertMonthOpen } from "@/lib/month-close/guard";
+import { resolveUserNames } from "@/lib/user-names";
 import type { ActionResult } from "@/lib/action-result";
 import { drawingSchema } from "./schema";
 
@@ -70,4 +71,40 @@ export async function recordPartnerDrawing(partnerId: string, input: unknown): P
   revalidatePath("/partner-ledger");
   revalidatePath("/cash-position");
   return { ok: true };
+}
+
+export type PartnerDistributionFullDetail = {
+  id: string;
+  partnerName: string;
+  entryDate: string;
+  accountingMonth: string;
+  amount: string;
+  kind: string;
+  sourceType: string;
+  description: string | null;
+  createdByName: string;
+  createdAt: string;
+};
+
+export async function getPartnerDistributionFullDetail(id: string): Promise<PartnerDistributionFullDetail | null> {
+  await requireUser();
+  const pl = await prisma.partnerLedger.findUnique({
+    where: { id },
+    include: { partner: { select: { name: true } } },
+  });
+  if (!pl) return null;
+  const names = await resolveUserNames([pl.createdById]);
+
+  return {
+    id: pl.id,
+    partnerName: pl.partner.name,
+    entryDate: pl.entryDate.toISOString(),
+    accountingMonth: pl.accountingMonth,
+    amount: pl.amount.toString(),
+    kind: pl.kind,
+    sourceType: pl.sourceType,
+    description: pl.description,
+    createdByName: names.get(pl.createdById) ?? "—",
+    createdAt: pl.createdAt.toISOString(),
+  };
 }

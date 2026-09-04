@@ -7,9 +7,11 @@ import type { ActionResult } from "@/lib/action-result";
 export function MarkSettledAction({
   id,
   action,
+  onSuccess,
 }: {
   id: string;
   action: (id: string) => Promise<ActionResult>;
+  onSuccess?: () => void;
 }) {
   const { run, isPending } = useCrudAction();
 
@@ -18,7 +20,7 @@ export function MarkSettledAction({
       size="sm"
       variant="outline"
       disabled={isPending}
-      onClick={() => run(() => action(id), { successMessage: "Marked settled" })}
+      onClick={() => run(() => action(id), { successMessage: "Marked settled", onSuccess })}
     >
       {isPending ? "Saving..." : "Mark Settled"}
     </Button>

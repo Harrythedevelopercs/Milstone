@@ -14,7 +14,15 @@ import {
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { deleteRcv } from "./actions";
 
-export function DeleteRcvAction({ id, monthOpen }: { id: string; monthOpen: boolean }) {
+export function DeleteRcvAction({
+  id,
+  monthOpen,
+  onSuccess,
+}: {
+  id: string;
+  monthOpen: boolean;
+  onSuccess?: () => void;
+}) {
   const { run, isPending } = useCrudAction();
   const [open, setOpen] = useState(false);
 
@@ -29,7 +37,10 @@ export function DeleteRcvAction({ id, monthOpen }: { id: string; monthOpen: bool
   function submit() {
     run(() => deleteRcv(id), {
       successMessage: "Entry deleted, transaction restored",
-      onSuccess: () => setOpen(false),
+      onSuccess: () => {
+        setOpen(false);
+        onSuccess?.();
+      },
     });
   }
 

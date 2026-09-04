@@ -189,7 +189,7 @@ export async function getUnifiedMoneyMovements(params: {
       description: `${s.notes || s.settlementParty.name} (${s.direction === "CLIENT_PAYABLE_TO_THIRD_PARTY" ? "client → third party" : "FP → third party"})`,
       amount: new Decimal(s.amount),
       status: null,
-      href: `/third-party/${s.id}`,
+      href: `/third-party/${s.settlementPartyId}`,
     });
   }
   for (const sl of salaries) {
@@ -211,7 +211,7 @@ export async function getUnifiedMoneyMovements(params: {
       description: c.description || `${c.kind === "COMMISSION" ? "Commission accrued" : "Payment"} -- ${c.employee.name}`,
       amount: new Decimal(c.amount),
       status: c.kind,
-      href: "/employee-partner-ledger",
+      href: `/employee-partner-ledger/${c.employeeId}`,
     });
   }
   for (const pl of partnerEntries) {
@@ -222,7 +222,7 @@ export async function getUnifiedMoneyMovements(params: {
       description: pl.description || `${pl.kind.replace(/_/g, " ").toLowerCase()} -- ${pl.partner.name}`,
       amount: new Decimal(pl.amount),
       status: pl.kind,
-      href: "/partner-ledger",
+      href: `/partner-ledger/${pl.partnerId}`,
     });
   }
   for (const ps of productSales) {

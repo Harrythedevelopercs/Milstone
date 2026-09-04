@@ -3,7 +3,7 @@
 import Decimal from "decimal.js";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/rbac";
+import { requireRole, requireUser } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit-log";
 import { postBankLedgerEntry } from "@/lib/ledger/post-bank-ledger";
 import { accountingMonthOf } from "@/lib/transactions/transaction-id";
@@ -234,4 +234,63 @@ export async function deleteClientPayout(id: string): Promise<ActionResult> {
   revalidatePath("/master-data/banks");
   revalidatePath("/cash-position");
   return { ok: true };
+}
+
+export type PayoutFullDetail = {
+  id: string;
+  clientName: string;
+  payoutDate: string;
+  accountingMonth: string;
+  payoutMethodName: string;
+  bankAccountName: string;
+  amountPaid: string;
+  generalAmount: string;
+  remittanceFee: string;
+  feeBearer: string;
+  reference: string | null;
+  status: string;
+  notes: string | null;
+  allocationCount: number;
+  createdAt: string;
+};
+
+export type PayoutDetailBundle = { payout: PayoutFullDetail; monthOpen: boolean };
+
+export async function getPayoutFullDetail(id: string): Promise<PayoutDetailBundle | null> {
+  await requireUser();
+  const [payout, closedMonths] = await Promise.all([
+    prisma.clientPayout.findUnique({
+      where: { id },
+      include: {
+        client: { select: { name: true } },
+        payoutMethod: { select: { name: true } },
+        bankAccount: { select: { name: true } },
+        _count: { select: { allocations: true } },
+      },
+    }),
+    prisma.monthClose.findMany({ where: { status: "CLOSED" }, select: { accountingMonth: true } }),
+  ]);
+  if (!payout) return null;
+  const closedMonthSet = new Set(closedMonths.map((m) => m.accountingMonth));
+
+  return {
+    payout: {
+      id: payout.id,
+      clientName: payout.client.name,
+      payoutDate: payout.payoutDate.toISOString(),
+      accountingMonth: payout.accountingMonth,
+      payoutMethodName: payout.payoutMethod.name,
+      bankAccountName: payout.bankAccount.name,
+      amountPaid: payout.amountPaid.toString(),
+      generalAmount: payout.generalAmount.toString(),
+      remittanceFee: payout.remittanceFee.toString(),
+      feeBearer: payout.feeBearer,
+      reference: payout.reference,
+      status: payout.status,
+      notes: payout.notes,
+      allocationCount: payout._count.allocations,
+      createdAt: payout.createdAt.toISOString(),
+    },
+    monthOpen: !closedMonthSet.has(payout.accountingMonth),
+  };
 }

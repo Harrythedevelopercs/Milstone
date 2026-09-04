@@ -3,8 +3,9 @@
 import Decimal from "decimal.js";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/rbac";
+import { requireRole, requireUser } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit-log";
+import { resolveUserNames } from "@/lib/user-names";
 import type { ActionResult } from "@/lib/action-result";
 import {
   calculateEmployeePartnerRevenue,
@@ -267,4 +268,40 @@ export async function runPartnerDistribution(input: unknown): Promise<ActionResu
   revalidatePath("/partner-ledger");
   revalidatePath("/bonus-pool");
   return { ok: true };
+}
+
+export type SalaryFullDetail = {
+  id: string;
+  employeeName: string;
+  entryDate: string;
+  accountingMonth: string;
+  amount: string;
+  payPeriod: string;
+  sourceType: string;
+  description: string | null;
+  createdByName: string;
+  createdAt: string;
+};
+
+export async function getSalaryFullDetail(id: string): Promise<SalaryFullDetail | null> {
+  await requireUser();
+  const sl = await prisma.salaryLedger.findUnique({
+    where: { id },
+    include: { employee: { select: { name: true } } },
+  });
+  if (!sl) return null;
+  const names = await resolveUserNames([sl.createdById]);
+
+  return {
+    id: sl.id,
+    employeeName: sl.employee.name,
+    entryDate: sl.entryDate.toISOString(),
+    accountingMonth: sl.accountingMonth,
+    amount: sl.amount.toString(),
+    payPeriod: sl.payPeriod,
+    sourceType: sl.sourceType,
+    description: sl.description,
+    createdByName: names.get(sl.createdById) ?? "—",
+    createdAt: sl.createdAt.toISOString(),
+  };
 }

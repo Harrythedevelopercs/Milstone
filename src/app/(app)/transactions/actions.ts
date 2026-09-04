@@ -22,6 +22,7 @@ import {
 import { getRoundingConfig, roundMoney } from "@/lib/transactions/rounding";
 import { assertMonthOpen } from "@/lib/month-close/guard";
 import { bankAccountLabel, BANK_ACCOUNT_LABEL_SELECT } from "@/lib/bank-account-label";
+import { resolveUserNames } from "@/lib/user-names";
 import { transactionSchema, rcvSchema, fulfillChargebackSchema } from "./schema";
 import { holdTransactionSchema } from "../reminders/schema";
 
@@ -1363,5 +1364,83 @@ export async function getTransactionFullDetail(id: string): Promise<TransactionD
     })),
     bankAccounts: bankAccounts.map((a) => ({ id: a.id, name: bankAccountLabel(a) })),
     paymentMethods,
+  };
+}
+
+export type RcvFullDetail = {
+  id: string;
+  type: "REFUND" | "CHARGEBACK" | "VOID";
+  originalTransactionId: string;
+  clientName: string;
+  accountingMonth: string;
+  eventDate: string;
+  amount: string;
+  feeAmount: string;
+  feeBearer: string | null;
+  reasonCode: string | null;
+  status: string;
+  notes: string | null;
+  documentUrl: string | null;
+  createdByName: string;
+  createdAt: string;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  fulfilledAt: string | null;
+  fulfilledByName: string | null;
+  fulfillmentBankAccountName: string | null;
+};
+
+export type RcvDetailBundle = {
+  rcv: RcvFullDetail;
+  monthOpen: boolean;
+  bankAccounts: { id: string; name: string }[];
+};
+
+export async function getRcvFullDetail(id: string): Promise<RcvDetailBundle | null> {
+  await requireUser();
+  const [rcv, closedMonths, bankAccounts] = await Promise.all([
+    prisma.refundChargebackVoid.findUnique({
+      where: { id },
+      include: {
+        originalTransaction: { select: { client: { select: { name: true } } } },
+        fulfillmentBankAccount: { select: BANK_ACCOUNT_LABEL_SELECT },
+      },
+    }),
+    prisma.monthClose.findMany({ where: { status: "CLOSED" }, select: { accountingMonth: true } }),
+    prisma.bankAccount.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      select: BANK_ACCOUNT_LABEL_SELECT,
+    }),
+  ]);
+  if (!rcv) return null;
+  const closedMonthSet = new Set(closedMonths.map((m) => m.accountingMonth));
+  const names = await resolveUserNames([rcv.createdById, rcv.approvedById, rcv.fulfilledById]);
+
+  return {
+    rcv: {
+      id: rcv.id,
+      type: rcv.type,
+      originalTransactionId: rcv.originalTransactionId,
+      clientName: rcv.originalTransaction.client.name,
+      accountingMonth: rcv.accountingMonth,
+      eventDate: rcv.eventDate.toISOString(),
+      amount: rcv.amount.toString(),
+      feeAmount: rcv.feeAmount.toString(),
+      feeBearer: rcv.feeBearer,
+      reasonCode: rcv.reasonCode,
+      status: rcv.status,
+      notes: rcv.notes,
+      documentUrl: rcv.documentUrl,
+      createdByName: names.get(rcv.createdById) ?? "—",
+      createdAt: rcv.createdAt.toISOString(),
+      approvedByName: rcv.approvedById ? (names.get(rcv.approvedById) ?? null) : null,
+      approvedAt: rcv.approvedAt?.toISOString() ?? null,
+      fulfilledAt: rcv.fulfilledAt?.toISOString() ?? null,
+      fulfilledByName: rcv.fulfilledById ? (names.get(rcv.fulfilledById) ?? null) : null,
+      fulfillmentBankAccountName: rcv.fulfillmentBankAccount ? bankAccountLabel(rcv.fulfillmentBankAccount) : null,
+    },
+    monthOpen: !closedMonthSet.has(rcv.accountingMonth),
+    bankAccounts: bankAccounts.map((a) => ({ id: a.id, name: bankAccountLabel(a) })),
   };
 }

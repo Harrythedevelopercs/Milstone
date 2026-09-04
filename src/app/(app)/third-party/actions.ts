@@ -3,11 +3,13 @@
 import Decimal from "decimal.js";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/rbac";
+import { requireRole, requireUser } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit-log";
 import { postBankLedgerEntry } from "@/lib/ledger/post-bank-ledger";
 import { accountingMonthOf } from "@/lib/transactions/transaction-id";
 import { assertMonthOpen } from "@/lib/month-close/guard";
+import { resolveUserNames } from "@/lib/user-names";
+import { bankAccountLabel, BANK_ACCOUNT_LABEL_SELECT } from "@/lib/bank-account-label";
 import type { ActionResult } from "@/lib/action-result";
 import { thirdPartySettlementSchema } from "./schema";
 
@@ -144,4 +146,48 @@ export async function createThirdPartySettlement(input: unknown): Promise<Action
   revalidatePath("/third-party");
   revalidatePath("/client-ledger");
   return { ok: true };
+}
+
+export type ThirdPartySettlementFullDetail = {
+  id: string;
+  settlementPartyName: string;
+  clientName: string | null;
+  relatedTransactionId: string | null;
+  direction: string;
+  amount: string;
+  bankAccountName: string | null;
+  settlementDate: string;
+  accountingMonth: string;
+  notes: string | null;
+  createdByName: string;
+  createdAt: string;
+};
+
+export async function getThirdPartySettlementFullDetail(id: string): Promise<ThirdPartySettlementFullDetail | null> {
+  await requireUser();
+  const s = await prisma.thirdPartySettlement.findUnique({
+    where: { id },
+    include: {
+      settlementParty: { select: { name: true } },
+      client: { select: { name: true } },
+      bankAccount: { select: BANK_ACCOUNT_LABEL_SELECT },
+    },
+  });
+  if (!s) return null;
+  const names = await resolveUserNames([s.createdById]);
+
+  return {
+    id: s.id,
+    settlementPartyName: s.settlementParty.name,
+    clientName: s.client?.name ?? null,
+    relatedTransactionId: s.relatedTransactionId,
+    direction: s.direction,
+    amount: s.amount.toString(),
+    bankAccountName: s.bankAccount ? bankAccountLabel(s.bankAccount) : null,
+    settlementDate: s.settlementDate.toISOString(),
+    accountingMonth: s.accountingMonth,
+    notes: s.notes,
+    createdByName: names.get(s.createdById) ?? "—",
+    createdAt: s.createdAt.toISOString(),
+  };
 }

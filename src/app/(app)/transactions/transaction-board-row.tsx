@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import Link from "next/link";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -19,30 +18,16 @@ export function TransactionBoardRow({
   onOpenDetail,
 }: {
   row: ClientMoneyMovementRow;
-  onOpenDetail: (id: string) => void;
+  onOpenDetail: (id: string, type: ClientMoneyMovementRow["type"]) => void;
 }) {
-  const router = useRouter();
-  const isReceived = row.type === "RECEIVED";
   const pending = isPendingApproval(row);
   const tone = moneyMovementRowTone(row);
   const amountNum = Number(row.amount);
 
-  function handleRowClick() {
-    if (isReceived) {
-      onOpenDetail(row.id);
-    } else {
-      router.push(row.href);
-    }
-  }
-
   return (
     <TableRow
-      onClick={handleRowClick}
-      title={
-        isReceived
-          ? "Click for full details, breakdown, and actions"
-          : `Click to open in ${MONEY_MOVEMENT_TYPE_LABEL[row.type]}`
-      }
+      onClick={() => onOpenDetail(row.id, row.type)}
+      title="Click for full details and actions"
       className={cn("cursor-pointer hover:bg-muted/60", pending && NEEDS_ATTENTION_ROW_CLASS)}
     >
       <TableCell>{format(row.date, "yyyy-MM-dd")}</TableCell>

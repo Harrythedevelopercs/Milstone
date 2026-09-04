@@ -3,7 +3,8 @@
 import Decimal from "decimal.js";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/rbac";
+import { requireRole, requireUser } from "@/lib/rbac";
+import { resolveUserNames } from "@/lib/user-names";
 import { writeAuditLog } from "@/lib/audit-log";
 import { accountingMonthOf } from "@/lib/transactions/transaction-id";
 import { assertMonthOpen } from "@/lib/month-close/guard";
@@ -145,4 +146,54 @@ export async function markInternalTransferSettled(id: string): Promise<ActionRes
   });
   revalidatePath("/transfers");
   return { ok: true };
+}
+
+export type TransferFullDetail = {
+  id: string;
+  fromBankAccountName: string;
+  toBankAccountName: string;
+  amount: string;
+  feeAmount: string;
+  feeBearer: string | null;
+  clientName: string | null;
+  transferDate: string;
+  accountingMonth: string;
+  notes: string | null;
+  settlementStatus: string;
+  settledAt: string | null;
+  settledByName: string | null;
+  createdByName: string;
+  createdAt: string;
+};
+
+export async function getTransferFullDetail(id: string): Promise<TransferFullDetail | null> {
+  await requireUser();
+  const t = await prisma.internalTransfer.findUnique({
+    where: { id },
+    include: {
+      fromBankAccount: { select: { name: true } },
+      toBankAccount: { select: { name: true } },
+      client: { select: { name: true } },
+    },
+  });
+  if (!t) return null;
+  const names = await resolveUserNames([t.createdById, t.settledById]);
+
+  return {
+    id: t.id,
+    fromBankAccountName: t.fromBankAccount.name,
+    toBankAccountName: t.toBankAccount.name,
+    amount: t.amount.toString(),
+    feeAmount: t.feeAmount.toString(),
+    feeBearer: t.feeBearer,
+    clientName: t.client?.name ?? null,
+    transferDate: t.transferDate.toISOString(),
+    accountingMonth: t.accountingMonth,
+    notes: t.notes,
+    settlementStatus: t.settlementStatus,
+    settledAt: t.settledAt?.toISOString() ?? null,
+    settledByName: t.settledById ? (names.get(t.settledById) ?? null) : null,
+    createdByName: names.get(t.createdById) ?? "—",
+    createdAt: t.createdAt.toISOString(),
+  };
 }

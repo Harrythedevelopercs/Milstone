@@ -3,10 +3,11 @@
 import Decimal from "decimal.js";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/rbac";
+import { requireRole, requireUser } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit-log";
 import { accountingMonthOf } from "@/lib/transactions/transaction-id";
 import { assertMonthOpen } from "@/lib/month-close/guard";
+import { resolveUserNames } from "@/lib/user-names";
 import type { ActionResult } from "@/lib/action-result";
 import { productServiceSaleSchema } from "./schema";
 
@@ -81,4 +82,54 @@ export async function createProductServiceSale(input: unknown): Promise<ActionRe
   revalidatePath("/product-sales");
   revalidatePath("/client-ledger");
   return { ok: true };
+}
+
+export type ProductSaleFullDetail = {
+  id: string;
+  productServiceName: string;
+  clientName: string | null;
+  businessUnitName: string | null;
+  quantity: number;
+  unitCost: string;
+  unitSellPrice: string;
+  totalRevenue: string;
+  totalCost: string;
+  saleDate: string;
+  accountingMonth: string;
+  deductFromClientBalance: boolean;
+  notes: string | null;
+  createdByName: string;
+  createdAt: string;
+};
+
+export async function getProductSaleFullDetail(id: string): Promise<ProductSaleFullDetail | null> {
+  await requireUser();
+  const ps = await prisma.productServiceSale.findUnique({
+    where: { id },
+    include: {
+      productService: { select: { name: true } },
+      client: { select: { name: true } },
+      businessUnit: { select: { name: true } },
+    },
+  });
+  if (!ps) return null;
+  const names = await resolveUserNames([ps.createdById]);
+
+  return {
+    id: ps.id,
+    productServiceName: ps.productService.name,
+    clientName: ps.client?.name ?? null,
+    businessUnitName: ps.businessUnit?.name ?? null,
+    quantity: ps.quantity,
+    unitCost: ps.unitCost.toString(),
+    unitSellPrice: ps.unitSellPrice.toString(),
+    totalRevenue: ps.totalRevenue.toString(),
+    totalCost: ps.totalCost.toString(),
+    saleDate: ps.saleDate.toISOString(),
+    accountingMonth: ps.accountingMonth,
+    deductFromClientBalance: ps.deductFromClientBalance,
+    notes: ps.notes,
+    createdByName: names.get(ps.createdById) ?? "—",
+    createdAt: ps.createdAt.toISOString(),
+  };
 }
