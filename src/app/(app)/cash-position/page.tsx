@@ -18,18 +18,24 @@ import { bankAccountLabel } from "@/lib/bank-account-label";
 const TYPE_LABEL: Record<string, string> = { BANK: "Bank", USDT: "USDT", CASH: "Cash" };
 
 export default async function CashPositionPage() {
-  const accounts = await prisma.bankAccount.findMany({
-    where: { active: true },
-    orderBy: [{ accountType: "asc" }, { name: "asc" }],
-    include: {
-      company: { select: { name: true } },
-      ledgerEntries: { select: { amount: true, usdValue: true } },
-    },
-  });
+  // Sum each account's ledger entries in the database (one aggregate query)
+  // instead of transferring every individual BankLedger row just to add
+  // them up in JS -- the row count only grows from here as more
+  // transactions/expenses/transfers post.
+  const [accounts, ledgerSums] = await Promise.all([
+    prisma.bankAccount.findMany({
+      where: { active: true },
+      orderBy: [{ accountType: "asc" }, { name: "asc" }],
+      include: { company: { select: { name: true } } },
+    }),
+    prisma.bankLedger.groupBy({ by: ["bankAccountId"], _sum: { amount: true, usdValue: true } }),
+  ]);
+  const sumByAccount = new Map(ledgerSums.map((s) => [s.bankAccountId, s._sum]));
 
   const rows = accounts.map((a) => {
-    const ledgerNative = a.ledgerEntries.reduce((sum, e) => sum.plus(e.amount), new Decimal(0));
-    const ledgerUsd = a.ledgerEntries.reduce((sum, e) => sum.plus(e.usdValue), new Decimal(0));
+    const sums = sumByAccount.get(a.id);
+    const ledgerNative = new Decimal(sums?.amount ?? 0);
+    const ledgerUsd = new Decimal(sums?.usdValue ?? 0);
     return {
       id: a.id,
       name: bankAccountLabel(a),

@@ -41,10 +41,8 @@ export default async function ClientLedgerDetailPage({
   const fromDate = from ? new Date(from) : null;
   const toDate = to ? new Date(to) : null;
 
-  const client = await prisma.client.findUnique({ where: { id } });
-  if (!client) notFound();
-
-  const [entries, clientHeldReserves] = await Promise.all([
+  const [client, entries, clientHeldReserves] = await Promise.all([
+    prisma.client.findUnique({ where: { id } }),
     prisma.clientLedger.findMany({
       where: { clientId: id },
       orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
@@ -55,6 +53,7 @@ export default async function ClientLedgerDetailPage({
       orderBy: { heldSince: "asc" },
     }),
   ]);
+  if (!client) notFound();
 
   // Client-held reserves are the client's own money, just not yet released
   // -- they never post to the ledger/running-balance (already excluded from

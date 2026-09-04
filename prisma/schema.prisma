@@ -673,6 +673,8 @@ model Transaction {
   @@index([merchantId])
   @@index([status])
   @@index([settlementBatchId])
+  @@index([transactionDate])
+  @@index([paymentMethodId])
   @@map("transactions")
 }
 
@@ -731,6 +733,7 @@ model ClientPayout {
 
   @@index([accountingMonth])
   @@index([clientId])
+  @@index([payoutDate])
   @@map("client_payouts")
 }
 
@@ -782,6 +785,7 @@ model RefundChargebackVoid {
 
   @@index([accountingMonth])
   @@index([originalTransactionId])
+  @@index([eventDate])
   @@map("refunds_chargebacks_voids")
 }
 
@@ -827,6 +831,7 @@ model Expense {
   bankLedgerEntries BankLedger[]
 
   @@index([accountingMonth])
+  @@index([expenseDate])
   @@map("expenses")
 }
 
@@ -859,6 +864,7 @@ model InternalTransfer {
   bankLedgerEntries BankLedger[]
 
   @@index([accountingMonth])
+  @@index([transferDate])
   @@map("internal_transfers")
 }
 
@@ -961,6 +967,7 @@ model ClientLedger {
 
   @@index([accountingMonth])
   @@index([clientId])
+  @@index([entryDate])
   @@map("client_ledger")
 }
 
@@ -982,6 +989,7 @@ model MerchantLedger {
 
   @@index([accountingMonth])
   @@index([merchantId])
+  @@index([entryDate])
   @@map("merchant_ledger")
 }
 
@@ -1010,6 +1018,7 @@ model BankLedger {
 
   @@index([accountingMonth])
   @@index([bankAccountId])
+  @@index([entryDate])
   @@map("bank_ledger")
 }
 

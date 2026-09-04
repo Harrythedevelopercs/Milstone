@@ -33,6 +33,7 @@ function StatCard({
 export async function OwnerDashboard({ accountingMonth }: { accountingMonth: string }) {
   const [
     bankAccounts,
+    bankLedgerSums,
     grossVolumeAgg,
     pnl,
     clientBalances,
@@ -46,8 +47,13 @@ export async function OwnerDashboard({ accountingMonth }: { accountingMonth: str
   ] = await Promise.all([
     prisma.bankAccount.findMany({
       where: { active: true },
-      include: { ledgerEntries: { select: { usdValue: true } } },
+      select: { id: true, openingBalance: true },
     }),
+    // Sum each account's ledger entries in the database instead of pulling
+    // every individual row across every bank account just to add them up in
+    // JS -- this only grows from here as more transactions/expenses/
+    // transfers post.
+    prisma.bankLedger.groupBy({ by: ["bankAccountId"], _sum: { usdValue: true } }),
     prisma.transaction.aggregate({
       where: { accountingMonth, status: { notIn: [...REVENUE_STATUSES_EXCLUDED] } },
       _sum: { grossAmount: true },
@@ -74,11 +80,9 @@ export async function OwnerDashboard({ accountingMonth }: { accountingMonth: str
     }),
   ]);
 
+  const ledgerSumByAccount = new Map(bankLedgerSums.map((s) => [s.bankAccountId, s._sum.usdValue]));
   const cashTotal = bankAccounts.reduce(
-    (sum, a) =>
-      sum.plus(
-        a.ledgerEntries.reduce((s, e) => s.plus(e.usdValue), new Decimal(a.openingBalance))
-      ),
+    (sum, a) => sum.plus(a.openingBalance).plus(ledgerSumByAccount.get(a.id) ?? 0),
     new Decimal(0)
   );
 

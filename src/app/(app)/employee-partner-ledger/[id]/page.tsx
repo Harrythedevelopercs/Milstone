@@ -33,20 +33,19 @@ export default async function EmployeePartnerLedgerDetailPage({
   const fromDate = from ? new Date(from) : null;
   const toDate = to ? new Date(to) : null;
 
-  const [employee, bankAccounts] = await Promise.all([
+  const [employee, bankAccounts, entries] = await Promise.all([
     prisma.employee.findUnique({ where: { id } }),
     prisma.bankAccount.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
       include: { company: { select: { name: true } } },
     }),
+    prisma.employeePartnerLedger.findMany({
+      where: { employeeId: id },
+      orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
+    }),
   ]);
   if (!employee) notFound();
-
-  const entries = await prisma.employeePartnerLedger.findMany({
-    where: { employeeId: id },
-    orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
-  });
 
   // Running balance must include everything before the range starts, so we
   // compute it over full history and only display rows inside the range.
