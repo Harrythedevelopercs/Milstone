@@ -50,6 +50,7 @@ export function TransactionTypeForm({
   businessUnits,
   partners,
   systemDefaultFeeBasis,
+  systemDefaultMerchantReserveBasis,
 }: {
   clients: PayoutClientOption[];
   merchants: MerchantOption[];
@@ -65,6 +66,7 @@ export function TransactionTypeForm({
   businessUnits: ExpenseOption[];
   partners: ExpenseKindOption[];
   systemDefaultFeeBasis: "GROSS" | "AFTER_MERCHANT_CHARGES";
+  systemDefaultMerchantReserveBasis: "GROSS" | "AFTER_MERCHANT_CHARGES";
 }) {
   const [type, setType] = useState("");
 
@@ -97,6 +99,7 @@ export function TransactionTypeForm({
           bankAccounts={bankAccounts}
           paymentMethods={paymentMethods}
           systemDefaultFeeBasis={systemDefaultFeeBasis}
+          systemDefaultMerchantReserveBasis={systemDefaultMerchantReserveBasis}
         />
       )}
       {type === "PAYOUT" && (

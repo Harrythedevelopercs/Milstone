@@ -18,8 +18,8 @@ import {
   calculateMerchantFeeFromRule,
   calculateNetAmountReceived,
   calculatePercentAmount,
-  money,
 } from "@/lib/transactions/money-math";
+import { getRoundingConfig, roundMoney } from "@/lib/transactions/rounding";
 import { assertMonthOpen } from "@/lib/month-close/guard";
 import { transactionSchema, rcvSchema, fulfillChargebackSchema } from "./schema";
 import { holdTransactionSchema } from "../reminders/schema";
@@ -50,6 +50,7 @@ export async function createTransaction(input: unknown): Promise<CreateTransacti
     feeBearer: d.feeBearer,
     merchantFeeManual: d.merchantFeeManual || null,
     merchantReservePercent: d.merchantReservePercent,
+    merchantReserveBasis: d.merchantReserveBasis,
     merchantReserveDirection: d.merchantReserveDirection,
     fpReservePercent: d.fpReservePercent,
     documentUrl: d.documentUrl || null,
@@ -98,7 +99,7 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
     if (newMonthError) return { ok: false, error: newMonthError };
   }
 
-  const [client, paymentMethod, merchant] = await Promise.all([
+  const [client, paymentMethod, merchant, { stage: roundingStage, mode: roundingMode }] = await Promise.all([
     prisma.client.findUnique({ where: { id: d.clientId } }),
     prisma.paymentMethod.findUnique({ where: { id: d.paymentMethodId } }),
     d.merchantId
@@ -107,6 +108,7 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
           include: { company: { select: { employeePartnerId: true } } },
         })
       : null,
+    getRoundingConfig(),
   ]);
   if (!client || client.status !== "ACTIVE") return { ok: false, error: "Client not found or inactive." };
   if (!paymentMethod || paymentMethod.status !== "ACTIVE") {
@@ -162,17 +164,19 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
   const merchantFeeSource: "MANUAL" | "RULE_DEFAULT" = merchantFeeManualProvided ? "MANUAL" : "RULE_DEFAULT";
   const merchantReservePercent = isDirect ? "0" : d.merchantReservePercent;
 
-  const netAmountReceived = calculateNetAmountReceived(gross, merchantFee);
-  const fpFee = calculateFpFee(
-    gross,
-    merchantFee,
-    rate.ratePercent,
-    d.feeBasis,
-    d.chargeType,
-    d.fixedChargeAmount
+  const componentRound = (v: Decimal.Value): Decimal.Value =>
+    roundingStage === "COMPONENT" ? roundMoney(v, roundingMode) : v;
+
+  const netAmountReceived = componentRound(calculateNetAmountReceived(gross, merchantFee));
+  const fpFee = componentRound(
+    calculateFpFee(gross, merchantFee, rate.ratePercent, d.feeBasis, d.chargeType, d.fixedChargeAmount)
   );
-  const merchantReserveAmount = calculatePercentAmount(gross, merchantReservePercent);
-  const fpReserveAmount = calculatePercentAmount(gross, d.fpReservePercent);
+  // Merchant reserve % is applied to gross or to net-of-merchant-charges,
+  // per the same three-level precedence as feeBasis -- see
+  // src/lib/transactions/reserve-basis.ts.
+  const reserveCalcBase = d.merchantReserveBasis === "GROSS" ? gross : netAmountReceived;
+  const merchantReserveAmount = componentRound(calculatePercentAmount(reserveCalcBase, merchantReservePercent));
+  const fpReserveAmount = componentRound(calculatePercentAmount(gross, d.fpReservePercent));
   const expectedSettlement = calculateExpectedSettlement(gross, merchantFee, merchantReserveAmount);
   const clientNetPayable = calculateClientNetPayable({
     gross,
@@ -214,21 +218,22 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
         grossAmount: gross,
         fpRatePercent: rate.ratePercent,
         feeBasis: d.feeBasis,
-        netAmountReceived: money(netAmountReceived),
-        fpFee: money(fpFee),
+        netAmountReceived: roundMoney(netAmountReceived, roundingMode),
+        fpFee: roundMoney(fpFee, roundingMode),
         chargeType: d.chargeType,
-        fixedChargeAmount: d.chargeType === "FIXED" ? money(d.fixedChargeAmount || 0) : null,
+        fixedChargeAmount: d.chargeType === "FIXED" ? roundMoney(d.fixedChargeAmount || 0, roundingMode) : null,
         merchantFeeManual: merchantFeeManualProvided ? d.merchantFeeManual! : null,
-        merchantFeeDefault: money(merchantFeeDefault),
-        merchantFee: money(merchantFee),
+        merchantFeeDefault: roundMoney(merchantFeeDefault, roundingMode),
+        merchantFee: roundMoney(merchantFee, roundingMode),
         merchantFeeSource,
         feeBearer: d.feeBearer,
         merchantReservePercent,
-        merchantReserveAmount: money(merchantReserveAmount),
+        merchantReserveBasis: d.merchantReserveBasis,
+        merchantReserveAmount: roundMoney(merchantReserveAmount, roundingMode),
         fpReservePercent: d.fpReservePercent,
-        fpReserveAmount: money(fpReserveAmount),
-        expectedSettlement: money(expectedSettlement),
-        clientNetPayable: money(clientNetPayable),
+        fpReserveAmount: roundMoney(fpReserveAmount, roundingMode),
+        expectedSettlement: roundMoney(expectedSettlement, roundingMode),
+        clientNetPayable: roundMoney(clientNetPayable, roundingMode),
         documentUrl: d.documentUrl || null,
         notes: d.notes || null,
         customerEmail: d.customerEmail || null,
@@ -300,7 +305,7 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
       // deposit for the first time, same as createTransactionCore.
       await postBankLedgerEntry(tx, {
         bankAccountId: effectiveBankId,
-        amount: money(gross),
+        amount: roundMoney(gross, roundingMode),
         entryDate: transactionDate,
         accountingMonth,
         sourceType: "TRANSACTION",

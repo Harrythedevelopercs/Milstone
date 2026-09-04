@@ -48,7 +48,7 @@ export default async function PayoutsPage({
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Client Payouts</h1>
         <Link href="/payouts/new" className={buttonVariants({})}>
-          New Payout
+          + New Payout
         </Link>
       </div>
 

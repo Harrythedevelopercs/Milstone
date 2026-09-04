@@ -44,6 +44,12 @@ const FEE_BASIS_ITEMS = [
   { value: "AFTER_MERCHANT_CHARGES", label: "Net (after merchant charges)" },
 ];
 
+const RESERVE_BASIS_ITEMS = [
+  { value: "none", label: "No default (falls back to System Settings)" },
+  { value: "GROSS", label: "Gross (before merchant charges)" },
+  { value: "AFTER_MERCHANT_CHARGES", label: "Net (after merchant charges)" },
+];
+
 export function ClientForm({
   defaultValues,
   editingId,
@@ -244,6 +250,43 @@ export function ClientForm({
                   </FormControl>
                   <SelectContent>
                     {FEE_BASIS_ITEMS.map((i) => (
+                      <SelectItem key={i.value} value={i.value}>
+                        {i.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="space-y-4 rounded-md border p-3">
+          <p className="text-sm font-medium">Default merchant reserve basis</p>
+          <FormDescription>
+            What the merchant reserve % is calculated on for this client&apos;s transactions --
+            gross, or net of merchant charges. Takes priority over the System Settings global
+            default; always overridable per transaction.
+          </FormDescription>
+          <FormField
+            control={form.control}
+            name="defaultMerchantReserveBasis"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel hint="Gross: the merchant reserve % is calculated on the full gross amount. Net: calculated on gross minus merchant charges. Leave as 'no default' to fall back to the System Settings global default.">Merchant reserve basis</FormLabel>
+                <Select
+                  value={field.value || "none"}
+                  onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
+                  items={RESERVE_BASIS_ITEMS}
+                >
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {RESERVE_BASIS_ITEMS.map((i) => (
                       <SelectItem key={i.value} value={i.value}>
                         {i.label}
                       </SelectItem>

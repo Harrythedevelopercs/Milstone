@@ -19,6 +19,7 @@ import { BulkSettleToolbar } from "../bulk-settle-toolbar";
 import { RcvActions } from "../rcv-actions";
 import { EditTransactionAction } from "../edit-transaction-action";
 import { TransactionHistoryAction } from "../transaction-history-action";
+import { TransactionBreakdownAction } from "../transaction-breakdown-action";
 import { DeleteTransactionAction } from "../delete-transaction-action";
 import { HoldAction } from "../hold-action";
 import { bankAccountLabel, BANK_ACCOUNT_LABEL_SELECT } from "@/lib/bank-account-label";
@@ -170,7 +171,7 @@ export default async function ReceivedTransactionsPage({
         </div>
         <div className="flex gap-2">
           <Link href="/transactions/new" className={buttonVariants({})}>
-            New Transaction
+            + New Transaction
           </Link>
         </div>
       </div>
@@ -369,6 +370,25 @@ export default async function ReceivedTransactionsPage({
                       <MarkSettledAction id={t.id} status={t.status} />
                       <HoldAction id={t.id} status={t.status} />
                       <RcvActions id={t.id} status={t.status} />
+                      <TransactionBreakdownAction
+                        transaction={{
+                          id: t.id,
+                          grossAmount: t.grossAmount.toString(),
+                          feeBasis: t.feeBasis,
+                          netAmountReceived: t.netAmountReceived.toString(),
+                          fpRatePercent: t.fpRatePercent.toString(),
+                          chargeType: t.chargeType,
+                          fpFee: t.fpFee.toString(),
+                          merchantFee: t.merchantFee.toString(),
+                          feeBearer: t.feeBearer,
+                          merchantReservePercent: t.merchantReservePercent.toString(),
+                          merchantReserveBasis: t.merchantReserveBasis,
+                          merchantReserveAmount: t.merchantReserveAmount.toString(),
+                          fpReservePercent: t.fpReservePercent.toString(),
+                          fpReserveAmount: t.fpReserveAmount.toString(),
+                          clientNetPayable: t.clientNetPayable?.toString() ?? null,
+                        }}
+                      />
                       <EditTransactionAction
                         row={{
                           id: t.id,
@@ -385,6 +405,7 @@ export default async function ReceivedTransactionsPage({
                           feeBearer: t.feeBearer,
                           merchantFeeManual: t.merchantFeeManual?.toString() ?? null,
                           merchantReservePercent: t.merchantReservePercent.toString(),
+                          merchantReserveBasis: t.merchantReserveBasis,
                           merchantReserveDirection:
                             t.reserveHolds.find((h) => h.direction !== "FP_OWN")?.direction ?? "CLIENT_HELD",
                           fpReservePercent: t.fpReservePercent.toString(),

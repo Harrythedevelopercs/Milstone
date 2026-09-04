@@ -98,7 +98,7 @@ export default async function SettlementsPage({
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Settlement Batches</h1>
         <Link href="/settlements/new" className={buttonVariants({})}>
-          New Settlement Batch
+          + New Settlement Batch
         </Link>
       </div>
 

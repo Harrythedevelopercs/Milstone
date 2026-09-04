@@ -222,6 +222,11 @@ model Client {
   // FP fee/net payout calculations. Null = no override, falls through to
   // the System Settings global default. Always overridable per transaction.
   defaultFeeBasis         FeeBasis?         @map("default_fee_basis")
+  // This client's default base for the merchant reserve % calculation (Gross
+  // vs After Merchant Charges) -- same precedence/reuse of FeeBasis as
+  // defaultFeeBasis above. Null = no override, falls through to the System
+  // Settings global default. Always overridable per transaction.
+  defaultMerchantReserveBasis FeeBasis?      @map("default_merchant_reserve_basis")
   createdAt               DateTime          @default(now()) @map("created_at")
   updatedAt               DateTime          @updatedAt @map("updated_at")
 
@@ -599,6 +604,12 @@ model Transaction {
   feeBearer FeeBearer @map("fee_bearer")
 
   merchantReservePercent Decimal @default(0) @map("merchant_reserve_percent") @db.Decimal(5, 2)
+  // Base the merchant reserve % is applied to -- resolved at entry time from
+  // the same three-level precedence as feeBasis (per-transaction > client
+  // default > System Settings global default -- see
+  // src/lib/transactions/reserve-basis.ts). Snapshotted so a later setting
+  // change never alters an already-posted transaction.
+  merchantReserveBasis   FeeBasis @default(GROSS) @map("merchant_reserve_basis")
   merchantReserveAmount  Decimal @default(0) @map("merchant_reserve_amount") @db.Decimal(18, 2)
   fpReservePercent       Decimal @default(0) @map("fp_reserve_percent") @db.Decimal(5, 2)
   fpReserveAmount        Decimal @default(0) @map("fp_reserve_amount") @db.Decimal(18, 2)

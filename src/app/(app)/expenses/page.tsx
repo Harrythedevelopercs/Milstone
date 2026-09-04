@@ -47,7 +47,7 @@ export default async function ExpensesPage({
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Expenses</h1>
         <Link href="/expenses/new" className={buttonVariants({})}>
-          New Expense
+          + New Expense
         </Link>
       </div>
 

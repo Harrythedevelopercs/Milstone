@@ -18,6 +18,9 @@ export const clientSchema = z.object({
   // "" means no override, falls through to the System Settings global
   // default. Always overridable per transaction.
   defaultFeeBasis: z.enum(["GROSS", "AFTER_MERCHANT_CHARGES", ""]),
+  // This client's default base for the merchant reserve % calculation --
+  // same shape/precedence as defaultFeeBasis above.
+  defaultMerchantReserveBasis: z.enum(["GROSS", "AFTER_MERCHANT_CHARGES", ""]),
 });
 
 export type ClientFormValues = z.infer<typeof clientSchema>;

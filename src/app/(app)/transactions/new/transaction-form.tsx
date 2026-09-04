@@ -37,6 +37,7 @@ export type ClientOption = {
   defaultReserveValue?: string | null;
   defaultReserveDirection?: "CLIENT_HELD" | "FP_FRONTED" | "FP_OWN" | null;
   defaultFeeBasis?: "GROSS" | "AFTER_MERCHANT_CHARGES" | null;
+  defaultMerchantReserveBasis?: "GROSS" | "AFTER_MERCHANT_CHARGES" | null;
 };
 export type MerchantOption = {
   id: string;
@@ -70,6 +71,11 @@ const FEE_BASIS_ITEMS = [
   { value: "AFTER_MERCHANT_CHARGES", label: "Net (after merchant charges)" },
 ];
 
+const RESERVE_BASIS_ITEMS = [
+  { value: "GROSS", label: "Gross (before merchant charges)" },
+  { value: "AFTER_MERCHANT_CHARGES", label: "Net (after merchant charges)" },
+];
+
 export function TransactionForm({
   clients,
   merchants,
@@ -80,6 +86,7 @@ export function TransactionForm({
   onSuccess,
   hideChrome = false,
   systemDefaultFeeBasis = "GROSS",
+  systemDefaultMerchantReserveBasis = "GROSS",
 }: {
   clients: ClientOption[];
   merchants: MerchantOption[];
@@ -90,6 +97,7 @@ export function TransactionForm({
   onSuccess?: () => void;
   hideChrome?: boolean;
   systemDefaultFeeBasis?: "GROSS" | "AFTER_MERCHANT_CHARGES";
+  systemDefaultMerchantReserveBasis?: "GROSS" | "AFTER_MERCHANT_CHARGES";
 }) {
   const router = useRouter();
   const { run, isPending } = useCrudAction();
@@ -109,6 +117,7 @@ export function TransactionForm({
       feeBearer: "CLIENT",
       merchantFeeManual: "",
       merchantReservePercent: "0",
+      merchantReserveBasis: systemDefaultMerchantReserveBasis,
       merchantReserveDirection: "CLIENT_HELD",
       fpReservePercent: "0",
       documentUrl: "",
@@ -172,6 +181,7 @@ export function TransactionForm({
 
     form.setValue("merchantReservePercent", percent);
     form.setValue("merchantReserveDirection", direction);
+    form.setValue("merchantReserveBasis", client?.defaultMerchantReserveBasis ?? systemDefaultMerchantReserveBasis);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [merchantId, clientId]);
 
@@ -551,6 +561,42 @@ export function TransactionForm({
                 />
               )}
             </div>
+
+            {!isDirect && (
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="merchantReserveBasis"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel hint="What the Merchant reserve % above is applied to. Gross: the full amount before merchant charges. Net: gross minus merchant charges. Defaults from the client's setting or, if unset, the System Settings global default -- always overridable here.">
+                        Merchant reserve basis
+                      </FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange} items={RESERVE_BASIS_ITEMS}>
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {RESERVE_BASIS_ITEMS.map((i) => (
+                            <SelectItem key={i.value} value={i.value}>
+                              {i.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        {selectedClient?.defaultMerchantReserveBasis
+                          ? "Defaulted from this client's setting. Always overridable per transaction."
+                          : "Defaulted from the System Settings global default (this client has no override). Always overridable per transaction."}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <FormField

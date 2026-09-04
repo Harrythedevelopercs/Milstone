@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getPayoutFormData } from "@/lib/transactions/payable-data";
 import { getDefaultFeeBasis } from "@/lib/transactions/fee-basis";
+import { getDefaultMerchantReserveBasis } from "@/lib/transactions/reserve-basis";
 import { bankAccountLabel, BANK_ACCOUNT_LABEL_SELECT } from "@/lib/bank-account-label";
 import { TransactionTypeForm } from "./transaction-type-form";
 
@@ -18,6 +19,7 @@ export default async function NewTransactionPage() {
     businessUnits,
     partners,
     systemDefaultFeeBasis,
+    systemDefaultMerchantReserveBasis,
   ] = await Promise.all([
     getPayoutFormData(),
     prisma.merchant.findMany({
@@ -75,6 +77,7 @@ export default async function NewTransactionPage() {
       select: { id: true, name: true },
     }),
     getDefaultFeeBasis(),
+    getDefaultMerchantReserveBasis(),
   ]);
 
   const merchantOptions = merchants.map((m) => ({
@@ -107,6 +110,7 @@ export default async function NewTransactionPage() {
         businessUnits={businessUnits}
         partners={partners}
         systemDefaultFeeBasis={systemDefaultFeeBasis}
+        systemDefaultMerchantReserveBasis={systemDefaultMerchantReserveBasis}
       />
     </div>
   );

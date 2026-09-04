@@ -6,11 +6,6 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { HoverNavItem } from "@/components/hover-nav-item";
 
-const TRANSACTIONS_LINKS = [
-  { href: "/transactions/new", label: "New Transaction" },
-  { href: "/transactions/received", label: "Received Transactions" },
-];
-
 const MONEY_LINKS = [
   { href: "/settlements", label: "Settlements" },
   { href: "/payouts", label: "Payouts" },
@@ -103,11 +98,10 @@ export function AppNav({
       {canSeeMasterData && (
         <nav className="flex items-center gap-5">
           <NavLink href="/" label="Dashboard" active={pathname === "/"} />
-          <HoverNavItem
-            label="Transactions"
+          <NavLink
             href="/transactions"
+            label="Transactions"
             active={isActive(pathname, "/transactions")}
-            items={TRANSACTIONS_LINKS}
           />
           <HoverNavItem
             label="Money"

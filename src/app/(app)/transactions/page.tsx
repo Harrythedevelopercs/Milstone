@@ -70,11 +70,14 @@ export default async function TransactionsPage({
           <p className="text-sm text-muted-foreground">
             Every money movement across FoundaPay -- payouts, expenses, transfers, refunds,
             chargebacks, voids, third-party settlements, disbursements, and sales -- in one place.
-            Each row links back to its own module for full detail and actions.
+            Each row links back to its own module for full detail and actions.{" "}
+            <Link href="/transactions/received" className="underline">
+              Received Transactions (review/approve queue) →
+            </Link>
           </p>
         </div>
         <Link href="/transactions/new" className={buttonVariants({})}>
-          New Transaction
+          + New Transaction
         </Link>
       </div>
 

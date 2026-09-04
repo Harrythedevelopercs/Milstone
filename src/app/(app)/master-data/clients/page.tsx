@@ -32,6 +32,7 @@ export default async function ClientsPage() {
     defaultReserveValue: c.defaultReserveValue?.toString() ?? null,
     defaultReserveDirection: c.defaultReserveDirection,
     defaultFeeBasis: c.defaultFeeBasis,
+    defaultMerchantReserveBasis: c.defaultMerchantReserveBasis,
     rateHistory: c.rateHistory.map((r) => ({
       id: r.id,
       paymentMethodId: r.paymentMethodId,

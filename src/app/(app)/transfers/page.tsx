@@ -31,7 +31,7 @@ export default async function TransfersPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Internal Transfers</h1>
         <Link href="/transfers/new" className={buttonVariants({})}>
-          New Transfer
+          + New Transfer
         </Link>
       </div>
 

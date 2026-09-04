@@ -9,6 +9,13 @@ import {
   type ActionResult,
 } from "@/lib/action-result";
 import { DEFAULT_FEE_BASIS_SETTING_KEY } from "@/lib/transactions/fee-basis";
+import { DEFAULT_MERCHANT_RESERVE_BASIS_SETTING_KEY } from "@/lib/transactions/reserve-basis";
+import {
+  ROUNDING_STAGE_SETTING_KEY,
+  ROUNDING_MODE_SETTING_KEY,
+  type RoundingStage,
+  type RoundingMode,
+} from "@/lib/transactions/rounding";
 import { systemSettingSchema } from "./schema";
 
 export async function createSystemSetting(input: unknown): Promise<ActionResult> {
@@ -75,5 +82,59 @@ export async function setDefaultFeeBasis(
   });
   revalidatePath("/master-data/settings");
   revalidatePath("/transactions/new");
+  return { ok: true };
+}
+
+// Global default merchant reserve basis for client transactions -- same
+// upsert pattern as setDefaultFeeBasis above.
+export async function setDefaultMerchantReserveBasis(
+  value: "GROSS" | "AFTER_MERCHANT_CHARGES"
+): Promise<ActionResult> {
+  await requireRole("OWNER", "ACCOUNTANT");
+  await prisma.systemSetting.upsert({
+    where: { key: DEFAULT_MERCHANT_RESERVE_BASIS_SETTING_KEY },
+    create: {
+      key: DEFAULT_MERCHANT_RESERVE_BASIS_SETTING_KEY,
+      value,
+      description:
+        "Global default base (Gross vs Net of merchant charges) the merchant reserve % is calculated on, used when neither the client nor the transaction sets an override.",
+    },
+    update: { value },
+  });
+  revalidatePath("/master-data/settings");
+  revalidatePath("/transactions/new");
+  return { ok: true };
+}
+
+// Global-only (no per-client/per-transaction override -- see
+// src/lib/transactions/rounding.ts for why). Both knobs are stored as two
+// separate SystemSetting rows, set together from one form.
+export async function setRoundingConfig(input: {
+  stage: RoundingStage;
+  mode: RoundingMode;
+}): Promise<ActionResult> {
+  await requireRole("OWNER", "ACCOUNTANT");
+  await prisma.$transaction([
+    prisma.systemSetting.upsert({
+      where: { key: ROUNDING_STAGE_SETTING_KEY },
+      create: {
+        key: ROUNDING_STAGE_SETTING_KEY,
+        value: input.stage,
+        description:
+          "Whether each transaction's intermediate money amounts (FP fee, merchant reserve, FP reserve) are rounded to cents immediately and carried forward (Component), or only the final stored values are rounded (Final).",
+      },
+      update: { value: input.stage },
+    }),
+    prisma.systemSetting.upsert({
+      where: { key: ROUNDING_MODE_SETTING_KEY },
+      create: {
+        key: ROUNDING_MODE_SETTING_KEY,
+        value: input.mode,
+        description: "Which rounding mode is used wherever a transaction amount rounds to cents.",
+      },
+      update: { value: input.mode },
+    }),
+  ]);
+  revalidatePath("/master-data/settings");
   return { ok: true };
 }

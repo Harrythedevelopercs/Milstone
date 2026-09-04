@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/rbac";
 import { createTransactionCore } from "@/lib/transactions/create-transaction-core";
 import { getDefaultFeeBasis, resolveFeeBasis } from "@/lib/transactions/fee-basis";
+import { getDefaultMerchantReserveBasis, resolveMerchantReserveBasis } from "@/lib/transactions/reserve-basis";
 import { employeeTransactionSchema } from "./schema";
 
 export type SubmitTransactionResult = { ok: true; id: string } | { ok: false; error: string };
@@ -19,10 +20,11 @@ export async function submitTransaction(input: unknown): Promise<SubmitTransacti
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
   const d = parsed.data;
 
-  const [paymentMethod, client, systemDefaultFeeBasis] = await Promise.all([
+  const [paymentMethod, client, systemDefaultFeeBasis, systemDefaultMerchantReserveBasis] = await Promise.all([
     prisma.paymentMethod.findUnique({ where: { id: d.paymentMethodId } }),
     prisma.client.findUnique({ where: { id: d.clientId } }),
     getDefaultFeeBasis(),
+    getDefaultMerchantReserveBasis(),
   ]);
   if (!paymentMethod || paymentMethod.status !== "ACTIVE") {
     return { ok: false, error: "Payment method not found or inactive." };
@@ -34,6 +36,10 @@ export async function submitTransaction(input: unknown): Promise<SubmitTransacti
   const feeBasis = resolveFeeBasis({
     clientDefault: client?.defaultFeeBasis,
     systemDefault: systemDefaultFeeBasis,
+  });
+  const merchantReserveBasis = resolveMerchantReserveBasis({
+    clientDefault: client?.defaultMerchantReserveBasis,
+    systemDefault: systemDefaultMerchantReserveBasis,
   });
 
   let expectedBankId: string;
@@ -72,6 +78,7 @@ export async function submitTransaction(input: unknown): Promise<SubmitTransacti
     feeBearer: "CLIENT",
     merchantFeeManual: null,
     merchantReservePercent,
+    merchantReserveBasis,
     merchantReserveDirection,
     fpReservePercent: "0",
     documentUrl: d.documentUrl || null,
