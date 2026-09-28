@@ -137,6 +137,7 @@ export function TransactionForm({
       fpReservePercent: "0",
       documentUrl: "",
       notes: "",
+      customerName: "",
       customerEmail: "",
       cardLast4: "",
     },
@@ -649,6 +650,19 @@ export function TransactionForm({
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
+                name="customerName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel hint="Optional -- the end customer's name. Helps tell apart transactions that otherwise look identical (same client/amount/date/merchant), e.g. when tracking down which one a chargeback is really about.">Customer name</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Optional" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="customerEmail"
                 render={({ field }) => (
                   <FormItem>
@@ -660,6 +674,9 @@ export function TransactionForm({
                   </FormItem>
                 )}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="cardLast4"

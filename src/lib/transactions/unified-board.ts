@@ -131,7 +131,7 @@ export async function getUnifiedMoneyMovements(params: {
       id: t.id,
       type: "RECEIVED",
       date: t.transactionDate,
-      description: `${t.paymentMethod.name} -- ${t.client.name}${t.clientReference ? ` (${t.clientReference})` : ""}`,
+      description: `${t.paymentMethod.name} -- ${t.client.name}${t.clientReference ? ` (${t.clientReference})` : ""}${t.customerName ? ` -- ${t.customerName}` : ""}`,
       amount: new Decimal(t.grossAmount),
       status: t.status,
       href: "/transactions/received",

@@ -33,6 +33,7 @@ export type EditableTransaction = {
   fpReservePercent: string;
   documentUrl: string | null;
   notes: string | null;
+  customerName: string | null;
   customerEmail: string | null;
   cardLast4: string | null;
 };
@@ -83,6 +84,7 @@ export function EditTransactionAction({
     fpReservePercent: row.fpReservePercent,
     documentUrl: row.documentUrl ?? "",
     notes: row.notes ?? "",
+    customerName: row.customerName ?? "",
     customerEmail: row.customerEmail ?? "",
     cardLast4: row.cardLast4 ?? "",
   };

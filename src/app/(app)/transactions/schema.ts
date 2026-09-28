@@ -34,6 +34,7 @@ export const transactionSchema = z.object({
   fpReservePercent: decimalString("Required"),
   documentUrl: z.string().trim().optional().or(z.literal("")),
   notes: z.string().trim().optional().or(z.literal("")),
+  customerName: z.string().trim().optional().or(z.literal("")),
   customerEmail: z
     .string()
     .trim()

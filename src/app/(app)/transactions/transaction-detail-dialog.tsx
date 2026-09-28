@@ -127,6 +127,7 @@ export function TransactionDetailDialog({
                   fpReservePercent: t.fpReservePercent,
                   documentUrl: t.documentUrl,
                   notes: t.notes,
+                  customerName: t.customerName,
                   customerEmail: t.customerEmail,
                   cardLast4: t.cardLast4,
                 }}
@@ -206,6 +207,7 @@ export function TransactionDetailDialog({
                 <Field label="Client net payable" value={t.clientNetPayable} />
                 <Field label="Status" value={t.status.replace(/_/g, " ")} />
                 <Field label="Settlement date" value={t.settlementDate ? format(new Date(t.settlementDate), "yyyy-MM-dd") : null} />
+                <Field label="Customer name" value={t.customerName} />
                 <Field label="Customer email" value={t.customerEmail} />
                 <Field label="Card last 4" value={t.cardLast4} />
                 <Field label="Document / proof link" value={t.documentUrl} />

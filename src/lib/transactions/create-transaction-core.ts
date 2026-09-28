@@ -56,6 +56,7 @@ export type CoreTransactionInput = {
   fpReservePercent: string;
   documentUrl: string | null;
   notes: string | null;
+  customerName?: string | null;
   customerEmail?: string | null;
   cardLast4?: string | null;
   createdById: string;
@@ -285,6 +286,7 @@ export async function createTransactionCore(
         settlementDate: isAutoApproved && isDirect ? transactionDate : null,
         documentUrl: input.documentUrl,
         notes: input.notes,
+        customerName: input.customerName || null,
         customerEmail: input.customerEmail || null,
         cardLast4: input.cardLast4 || null,
         createdById: input.createdById,

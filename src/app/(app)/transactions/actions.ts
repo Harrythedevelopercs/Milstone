@@ -64,6 +64,7 @@ export async function createTransaction(
     fpReservePercent: d.fpReservePercent,
     documentUrl: d.documentUrl || null,
     notes: d.notes || null,
+    customerName: d.customerName || null,
     customerEmail: d.customerEmail || null,
     cardLast4: d.cardLast4 || null,
     createdById: user.id,
@@ -270,6 +271,7 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
         clientNetPayable: roundMoney(clientNetPayable, roundingMode),
         documentUrl: d.documentUrl || null,
         notes: d.notes || null,
+        customerName: d.customerName || null,
         customerEmail: d.customerEmail || null,
         cardLast4: d.cardLast4 || null,
         updatedById: user.id,
@@ -1260,6 +1262,7 @@ export type TransactionFullDetail = {
   settlementDate: string | null;
   documentUrl: string | null;
   notes: string | null;
+  customerName: string | null;
   customerEmail: string | null;
   cardLast4: string | null;
   reviewNotes: string | null;
@@ -1384,6 +1387,7 @@ export async function getTransactionFullDetail(id: string): Promise<TransactionD
       settlementDate: txn.settlementDate?.toISOString() ?? null,
       documentUrl: txn.documentUrl,
       notes: txn.notes,
+      customerName: txn.customerName,
       customerEmail: txn.customerEmail,
       cardLast4: txn.cardLast4,
       reviewNotes: txn.reviewNotes,

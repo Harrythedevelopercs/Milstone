@@ -64,7 +64,9 @@ type SearchParams = {
   status?: string;
   merchantId?: string;
   clientId?: string;
+  companyId?: string;
   paymentMethodId?: string;
+  q?: string;
   sort?: string;
   dir?: string;
   page?: string;
@@ -76,7 +78,7 @@ export default async function ReceivedTransactionsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const sp = await searchParams;
-  const { from, to, entryFrom, entryTo, status, merchantId, clientId, paymentMethodId } = sp;
+  const { from, to, entryFrom, entryTo, status, merchantId, clientId, companyId, paymentMethodId, q } = sp;
   const fromDate = from ? new Date(from) : null;
   const toDate = to ? new Date(to) : null;
   const entryFromDate = entryFrom ? new Date(entryFrom) : null;
@@ -97,10 +99,23 @@ export default async function ReceivedTransactionsPage({
     ...(status ? { status: status as never } : {}),
     ...(merchantId ? { merchantId: merchantId === "DIRECT" ? null : merchantId } : {}),
     ...(clientId ? { clientId } : {}),
+    ...(companyId ? { companyId } : {}),
     ...(paymentMethodId ? { paymentMethodId } : {}),
+    // Free-text search across Company, Merchant, Client, and Customer name --
+    // matches if any one of them contains the text (case-insensitive).
+    ...(q
+      ? {
+          OR: [
+            { client: { name: { contains: q, mode: "insensitive" as const } } },
+            { merchant: { name: { contains: q, mode: "insensitive" as const } } },
+            { company: { name: { contains: q, mode: "insensitive" as const } } },
+            { customerName: { contains: q, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
   };
 
-  const [transactions, totalCount, merchants, clients, bankAccounts, paymentMethods, closedMonths] =
+  const [transactions, totalCount, merchants, clients, companies, bankAccounts, paymentMethods, closedMonths] =
     await Promise.all([
       prisma.transaction.findMany({
         where,
@@ -110,6 +125,7 @@ export default async function ReceivedTransactionsPage({
         include: {
           client: { select: { name: true } },
           merchant: { select: { name: true } },
+          company: { select: { name: true } },
           paymentMethod: { select: { name: true } },
           createdBy: { select: { name: true } },
           reserveHolds: { select: { direction: true } },
@@ -128,6 +144,11 @@ export default async function ReceivedTransactionsPage({
         },
       }),
       prisma.client.findMany({
+        where: { status: "ACTIVE" },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
+      prisma.company.findMany({
         where: { status: "ACTIVE" },
         orderBy: { name: "asc" },
         select: { id: true, name: true },
@@ -173,7 +194,9 @@ export default async function ReceivedTransactionsPage({
     if (status) query.set("status", status);
     if (merchantId) query.set("merchantId", merchantId);
     if (clientId) query.set("clientId", clientId);
+    if (companyId) query.set("companyId", companyId);
     if (paymentMethodId) query.set("paymentMethodId", paymentMethodId);
+    if (q) query.set("q", q);
     if (sp.sort) query.set("sort", sp.sort);
     if (sp.dir) query.set("dir", sp.dir);
     return query;
@@ -226,6 +249,19 @@ export default async function ReceivedTransactionsPage({
 
       <div className="flex flex-wrap items-end justify-between gap-3 rounded-md border p-3">
         <form method="get" className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="q" className="text-xs text-muted-foreground">
+              Search
+            </label>
+            <input
+              id="q"
+              name="q"
+              type="text"
+              defaultValue={q}
+              placeholder="Company, merchant, client, or customer name"
+              className="h-8 w-64 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            />
+          </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="from" className="text-xs text-muted-foreground">
               From
@@ -330,6 +366,24 @@ export default async function ReceivedTransactionsPage({
             </select>
           </div>
           <div className="flex flex-col gap-1">
+            <label htmlFor="companyId" className="text-xs text-muted-foreground">
+              Company
+            </label>
+            <select
+              id="companyId"
+              name="companyId"
+              defaultValue={companyId ?? ""}
+              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            >
+              <option value="">All companies</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
             <label htmlFor="paymentMethodId" className="text-xs text-muted-foreground">
               Method
             </label>
@@ -352,7 +406,7 @@ export default async function ReceivedTransactionsPage({
           <button type="submit" className="h-8 rounded-lg border border-input px-3 text-sm hover:bg-muted">
             Filter
           </button>
-          {(from || to || entryFrom || entryTo || status || merchantId || clientId || paymentMethodId) && (
+          {(from || to || entryFrom || entryTo || status || merchantId || clientId || companyId || paymentMethodId || q) && (
             <Link href="/transactions/received" className="h-8 px-3 text-sm text-muted-foreground underline self-center">
               Clear
             </Link>
@@ -379,6 +433,7 @@ export default async function ReceivedTransactionsPage({
                 </Link>
               </TableHead>
               <TableHead>Client</TableHead>
+              <TableHead>Customer</TableHead>
               <TableHead>Merchant</TableHead>
               <TableHead>Method</TableHead>
               <TableHead>Submitted by</TableHead>
@@ -400,7 +455,7 @@ export default async function ReceivedTransactionsPage({
           </TableHeader>
           <TableBody>
             {transactions.length === 0 ? (
-              <EmptyTableRow colSpan={21} message="No transactions match these filters." />
+              <EmptyTableRow colSpan={22} message="No transactions match these filters." />
             ) : (
               transactions.map((t) => (
                 <TableRow key={t.id}>
@@ -408,6 +463,7 @@ export default async function ReceivedTransactionsPage({
                   <TableCell>{format(t.transactionDate, "yyyy-MM-dd")}</TableCell>
                   <TableCell className="text-muted-foreground">{format(t.createdAt, "yyyy-MM-dd")}</TableCell>
                   <TableCell>{t.client.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{t.customerName ?? "—"}</TableCell>
                   <TableCell>{t.merchant?.name ?? "Direct"}</TableCell>
                   <TableCell>{t.paymentMethod.name}</TableCell>
                   <TableCell>{t.createdBy.name}</TableCell>
@@ -487,6 +543,7 @@ export default async function ReceivedTransactionsPage({
                           fpReservePercent: t.fpReservePercent.toString(),
                           documentUrl: t.documentUrl,
                           notes: t.notes,
+                          customerName: t.customerName,
                           customerEmail: t.customerEmail,
                           cardLast4: t.cardLast4,
                         }}
