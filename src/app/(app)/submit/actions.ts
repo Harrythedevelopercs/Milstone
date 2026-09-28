@@ -8,13 +8,21 @@ import { getDefaultFeeBasis, resolveFeeBasis } from "@/lib/transactions/fee-basi
 import { getDefaultMerchantReserveBasis, resolveMerchantReserveBasis } from "@/lib/transactions/reserve-basis";
 import { employeeTransactionSchema } from "./schema";
 
-export type SubmitTransactionResult = { ok: true; id: string } | { ok: false; error: string };
+export type SubmitTransactionResult =
+  | { ok: true; id: string }
+  | { ok: false; error: string }
+  | { ok: false; isDuplicateWarning: true; duplicateOf: { id: string; status: string } };
 
 // Employee entry screen: only client/date/method/gross/merchant/reference/
 // notes/proof are collected (brief section 3). Everything economics-related
 // (fee bearer, reserve %, manual fee override) is defaulted and stays
 // invisible to the submitter -- they never see FP fee economics.
-export async function submitTransaction(input: unknown): Promise<SubmitTransactionResult> {
+// confirmDuplicate: pass true once the caller has already shown the
+// possible-duplicate warning and the user chose to submit anyway.
+export async function submitTransaction(
+  input: unknown,
+  confirmDuplicate = false
+): Promise<SubmitTransactionResult> {
   const user = await requireUser();
   const parsed = employeeTransactionSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
@@ -85,6 +93,7 @@ export async function submitTransaction(input: unknown): Promise<SubmitTransacti
     notes: d.notes || null,
     createdById: user.id,
     status: "SUBMITTED",
+    confirmDuplicate,
   });
 
   if (result.ok) revalidatePath("/submit");

@@ -29,11 +29,17 @@ import { holdTransactionSchema } from "../reminders/schema";
 
 export type CreateTransactionResult =
   | { ok: true; id: string }
-  | { ok: false; error: string };
+  | { ok: false; error: string }
+  | { ok: false; isDuplicateWarning: true; duplicateOf: { id: string; status: string } };
 
 // Accountant/Owner entries are auto-approved (brief section 6: "Accountant's
-// own entries auto-approve").
-export async function createTransaction(input: unknown): Promise<CreateTransactionResult> {
+// own entries auto-approve"). confirmDuplicate: pass true once the caller
+// has already shown the possible-duplicate warning and the user chose to
+// save anyway (see createTransactionCore's duplicate check).
+export async function createTransaction(
+  input: unknown,
+  confirmDuplicate = false
+): Promise<CreateTransactionResult> {
   const user = await requireRole("OWNER", "ACCOUNTANT");
   const parsed = transactionSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
@@ -62,6 +68,7 @@ export async function createTransaction(input: unknown): Promise<CreateTransacti
     cardLast4: d.cardLast4 || null,
     createdById: user.id,
     status: "APPROVED",
+    confirmDuplicate,
   });
 
   if (result.ok) {

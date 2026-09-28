@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,6 +26,16 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { transactionSchema, type TransactionFormValues } from "../schema";
 import { createTransaction, updateTransaction } from "../actions";
@@ -101,6 +111,11 @@ export function TransactionForm({
 }) {
   const router = useRouter();
   const { run, isPending } = useCrudAction();
+  // Possible-duplicate warning (same merchant + gross + transaction date):
+  // set only when createTransaction reports isDuplicateWarning, holding the
+  // values so "Save anyway" can resubmit with confirmDuplicate: true.
+  const [duplicateWarning, setDuplicateWarning] = useState<{ id: string; status: string } | null>(null);
+  const [pendingValues, setPendingValues] = useState<TransactionFormValues | null>(null);
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
     defaultValues: providedDefaultValues ?? {
@@ -194,12 +209,12 @@ export function TransactionForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDirect]);
 
-  function onSubmit(values: TransactionFormValues) {
+  function doSubmit(values: TransactionFormValues, confirmDuplicate: boolean) {
     run(
       async () => {
         const result = editingId
           ? await updateTransaction(editingId, values)
-          : await createTransaction(values);
+          : await createTransaction(values, confirmDuplicate);
         if (result.ok) {
           toast.success(editingId ? "Transaction updated" : `Transaction ${result.id} created`);
           if (editingId) {
@@ -209,10 +224,27 @@ export function TransactionForm({
           }
           return { ok: true };
         }
+        if ("isDuplicateWarning" in result) {
+          setDuplicateWarning(result.duplicateOf);
+          setPendingValues(values);
+          return { ok: true };
+        }
         return result;
       },
       {}
     );
+  }
+
+  function onSubmit(values: TransactionFormValues) {
+    doSubmit(values, false);
+  }
+
+  function confirmDuplicateAndSave() {
+    if (!pendingValues) return;
+    const values = pendingValues;
+    setDuplicateWarning(null);
+    setPendingValues(null);
+    doSubmit(values, true);
   }
 
   const formBody = (
@@ -678,7 +710,42 @@ export function TransactionForm({
     </Form>
   );
 
-  if (hideChrome) return formBody;
+  const duplicateDialog = (
+    <AlertDialog
+      open={!!duplicateWarning}
+      onOpenChange={(open) => {
+        if (!open) {
+          setDuplicateWarning(null);
+          setPendingValues(null);
+        }
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Possible duplicate</AlertDialogTitle>
+          <AlertDialogDescription>
+            A transaction for this merchant, amount and date already exists
+            {duplicateWarning ? ` (${duplicateWarning.id}, status: ${duplicateWarning.status})` : ""}. Two genuine
+            same-day, same-amount payments do happen -- if this one is real, save it anyway. Otherwise, cancel and
+            double-check before re-entering it.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={confirmDuplicateAndSave}>Save anyway</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  if (hideChrome) {
+    return (
+      <>
+        {formBody}
+        {duplicateDialog}
+      </>
+    );
+  }
 
   return (
     <Card>
@@ -686,6 +753,7 @@ export function TransactionForm({
         <CardTitle>New Transaction</CardTitle>
       </CardHeader>
       <CardContent>{formBody}</CardContent>
+      {duplicateDialog}
     </Card>
   );
 }

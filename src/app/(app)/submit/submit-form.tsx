@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,6 +25,16 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useCrudAction } from "@/hooks/use-crud-action";
 import { employeeTransactionSchema, type EmployeeTransactionFormValues } from "./schema";
 import { submitTransaction } from "./actions";
@@ -61,6 +71,11 @@ export function SubmitForm({
     resolver: zodResolver(employeeTransactionSchema),
     defaultValues: EMPTY_VALUES,
   });
+  // Possible-duplicate warning (same merchant + gross + transaction date):
+  // set only when submitTransaction reports isDuplicateWarning, holding the
+  // values so "Submit anyway" can resubmit with confirmDuplicate: true.
+  const [duplicateWarning, setDuplicateWarning] = useState<{ id: string; status: string } | null>(null);
+  const [pendingValues, setPendingValues] = useState<EmployeeTransactionFormValues | null>(null);
 
   const paymentMethodId = form.watch("paymentMethodId");
   const selectedPaymentMethod = paymentMethods.find((m) => m.id === paymentMethodId);
@@ -72,20 +87,37 @@ export function SubmitForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDirect]);
 
-  function onSubmit(values: EmployeeTransactionFormValues) {
+  function doSubmit(values: EmployeeTransactionFormValues, confirmDuplicate: boolean) {
     run(
       async () => {
-        const result = await submitTransaction(values);
+        const result = await submitTransaction(values, confirmDuplicate);
         if (result.ok) {
           toast.success(`Submitted as ${result.id} — awaiting approval`);
           form.reset(EMPTY_VALUES);
           router.refresh();
           return { ok: true };
         }
+        if ("isDuplicateWarning" in result) {
+          setDuplicateWarning(result.duplicateOf);
+          setPendingValues(values);
+          return { ok: true };
+        }
         return result;
       },
       {}
     );
+  }
+
+  function onSubmit(values: EmployeeTransactionFormValues) {
+    doSubmit(values, false);
+  }
+
+  function confirmDuplicateAndSubmit() {
+    if (!pendingValues) return;
+    const values = pendingValues;
+    setDuplicateWarning(null);
+    setPendingValues(null);
+    doSubmit(values, true);
   }
 
   return (
@@ -292,6 +324,31 @@ export function SubmitForm({
           </form>
         </Form>
       </CardContent>
+      <AlertDialog
+        open={!!duplicateWarning}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDuplicateWarning(null);
+            setPendingValues(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Possible duplicate</AlertDialogTitle>
+            <AlertDialogDescription>
+              A transaction for this merchant, amount and date already exists
+              {duplicateWarning ? ` (${duplicateWarning.id}, status: ${duplicateWarning.status})` : ""}. Two genuine
+              same-day, same-amount payments do happen -- if this one is real, submit it anyway. Otherwise, cancel
+              and double-check before re-entering it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDuplicateAndSubmit}>Submit anyway</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

@@ -65,9 +65,21 @@ export type CoreTransactionInput = {
   // Defaults to the client's configured rate (PERCENTAGE) when omitted.
   chargeType?: "PERCENTAGE" | "FIXED" | "NONE";
   fixedChargeAmount?: string | null;
+  // Set once the caller has already shown the possible-duplicate warning
+  // (see CoreTransactionResult's duplicate variant below) and the user
+  // chose to save anyway. Skips the duplicate check entirely.
+  confirmDuplicate?: boolean;
 };
 
-export type CoreTransactionResult = { ok: true; id: string } | { ok: false; error: string };
+export type CoreTransactionResult =
+  | { ok: true; id: string }
+  | { ok: false; error: string }
+  // Not a hard failure -- a same-merchant + same-amount + same-date
+  // transaction already exists. The caller should show this to the user
+  // and let them either fix the entry or resubmit with
+  // confirmDuplicate: true (two genuine same-day, same-amount payments do
+  // happen) -- never a silent block.
+  | { ok: false; isDuplicateWarning: true; duplicateOf: { id: string; status: string } };
 
 export async function createTransactionCore(
   input: CoreTransactionInput
@@ -129,6 +141,23 @@ export async function createTransactionCore(
       error:
         "No rate is set up for this client and payment method as of this date. Add one under Master Data → Clients → Rates first.",
     };
+  }
+
+  // Same merchant + same gross amount + same transaction date as an
+  // existing transaction -- almost always an accidental double-entry (the
+  // 1 Sep AAA payment that slipped through twice). Warn, don't block: the
+  // caller shows this and lets the user either fix it or explicitly save
+  // anyway (confirmDuplicate), since two genuine same-day same-amount
+  // payments for the same merchant do happen.
+  if (!input.confirmDuplicate) {
+    const existingDuplicate = await prisma.transaction.findFirst({
+      where: { merchantId: input.merchantId, grossAmount: input.grossAmount, transactionDate },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, status: true },
+    });
+    if (existingDuplicate) {
+      return { ok: false, isDuplicateWarning: true, duplicateOf: existingDuplicate };
+    }
   }
 
   const gross = input.grossAmount;
