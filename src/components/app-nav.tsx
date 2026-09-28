@@ -46,6 +46,7 @@ const MASTER_DATA_LINKS = [
   { href: "/master-data/companies", label: "Companies" },
   { href: "/master-data/settlement-parties", label: "Settlement Parties" },
   { href: "/master-data/vendors", label: "Vendors" },
+  { href: "/master-data/referral-partners", label: "Referral Partners" },
   { href: "/master-data/employees", label: "Employees" },
   { href: "/master-data/partners", label: "Partners" },
   { href: "/master-data/banks", label: "Bank Accounts" },

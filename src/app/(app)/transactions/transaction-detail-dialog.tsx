@@ -181,7 +181,10 @@ export function TransactionDetailDialog({
                 <Field label="FP rate %" value={`${t.fpRatePercent}%`} />
                 <Field label="Charge type" value={t.chargeType} />
                 <Field label="Fixed charge amount" value={t.fixedChargeAmount} />
-                <Field label="FP fee" value={t.fpFee} />
+                <Field label="FP fee (total, gross revenue)" value={t.fpFee} />
+                <Field label="Referral partner" value={t.referralPartnerName ? `${t.referralPartnerName} (${t.referralPartnerRatePercent}%)` : "None"} />
+                <Field label="Referral partner fee (payable)" value={t.referralPartnerFee} />
+                <Field label="FoundaPay pure fee (own revenue)" value={t.foundapayPureFee} />
                 <Field label="Fee bearer" value={t.feeBearer === "CLIENT" ? "Client" : "FoundaPay"} />
                 <Field label="Merchant fee (manual)" value={t.merchantFeeManual} />
                 <Field label="Merchant fee (rule default)" value={t.merchantFeeDefault} />

@@ -36,6 +36,20 @@ export default async function IncomeStatementPage({
               <Line key={l.label} label={l.label} value={l.amount.toFixed(2)} indent />
             ))}
             <Line label="Total Revenue" value={stmt.revenue.toFixed(2)} bold />
+            {!stmt.referralPartnerCommission.isZero() && (
+              <>
+                <Line
+                  label="of which: owed to referral partners"
+                  value={`-${stmt.referralPartnerCommission.toFixed(2)}`}
+                  indent
+                />
+                <Line
+                  label="of which: FoundaPay's own net revenue"
+                  value={stmt.revenueNetOfReferral.toFixed(2)}
+                  indent
+                />
+              </>
+            )}
           </div>
           <div className="py-2">
             <p className="mb-1 font-semibold">Cost of Goods Sold</p>
@@ -59,7 +73,12 @@ export default async function IncomeStatementPage({
         Reserves held (merchant/FP reserve withheld from a payout) are not revenue and are not
         included above. The refunds/chargebacks COGS line reflects gross reversed transaction
         value for the period; FP&apos;s own fee remains recognized as revenue per policy (a
-        refund/chargeback does not reverse it).
+        refund/chargeback does not reverse it). &quot;FP Fee Revenue&quot; is the full combined
+        rate charged to the client (e.g. 9.5%) -- it does not change based on referral splits.
+        Where a client has a referral partner (e.g. Kamal), that partner&apos;s share is also
+        listed as its own &quot;Referral Partner Commission&quot; line under Cost of Goods Sold,
+        same treatment as Employee-Partner Commission -- so Gross Profit already reflects
+        FoundaPay&apos;s revenue net of what&apos;s owed to referral partners.
       </p>
     </div>
   );

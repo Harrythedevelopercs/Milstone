@@ -81,3 +81,38 @@ export function calculateClientNetPayable(params: {
 export function money(value: Decimal.Value): string {
   return new Decimal(value).toFixed(2);
 }
+
+// Splits an already-computed fpFee between a referral partner's share and
+// FoundaPay's own revenue -- the combined rate (and therefore fpFee and
+// clientNetPayable) is unchanged by this; it only records who the fee
+// belongs to. referralPartnerFee is computed directly as its own percentage
+// of the same base fpFee used (so it lines up with the client's own worked
+// numbers, e.g. gross x 2%), and foundapayPureFee is defined as the
+// remainder of fpFee -- not computed independently -- so the two always sum
+// to fpFee exactly, with no possible penny-level drift between them.
+// PERCENTAGE charge type only: a FIXED or NONE fpFee has no rate to
+// proportion a referral share out of, so the whole fee is treated as
+// FoundaPay's own in that case.
+export function splitFpFee(params: {
+  fpFee: Decimal.Value;
+  gross: Decimal.Value;
+  merchantFee: Decimal.Value;
+  feeBasis: FeeBasis;
+  chargeType: ChargeType;
+  referralPartnerRatePercent?: Decimal.Value | null;
+}): { referralPartnerFee: Decimal; foundapayPureFee: Decimal } {
+  const fpFee = new Decimal(params.fpFee);
+  if (
+    params.chargeType !== "PERCENTAGE" ||
+    params.referralPartnerRatePercent === null ||
+    params.referralPartnerRatePercent === undefined
+  ) {
+    return { referralPartnerFee: new Decimal(0), foundapayPureFee: fpFee };
+  }
+  const base =
+    params.feeBasis === "GROSS"
+      ? new Decimal(params.gross)
+      : calculateNetAmountReceived(params.gross, params.merchantFee);
+  const referralPartnerFee = base.mul(pct(params.referralPartnerRatePercent));
+  return { referralPartnerFee, foundapayPureFee: fpFee.minus(referralPartnerFee) };
+}

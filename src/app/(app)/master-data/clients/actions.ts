@@ -161,6 +161,8 @@ export async function saveClientRateBatch(clientId: string, input: unknown): Pro
           effectiveFrom,
           ratePercent: entry.ratePercent,
           feeBasis: entry.feeBasis,
+          referralPartnerId: entry.referralPartnerId || null,
+          referralPartnerRatePercent: entry.referralPartnerRatePercent || null,
           notes: d.notes || null,
         },
       });

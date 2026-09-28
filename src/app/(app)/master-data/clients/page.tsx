@@ -3,17 +3,25 @@ import { prisma } from "@/lib/prisma";
 import { ClientsClient } from "./clients-client";
 
 export default async function ClientsPage() {
-  const [clients, paymentMethods] = await Promise.all([
+  const [clients, paymentMethods, referralPartners] = await Promise.all([
     prisma.client.findMany({
       orderBy: { name: "asc" },
       include: {
         rateHistory: {
           orderBy: { effectiveFrom: "desc" },
-          include: { paymentMethod: { select: { name: true } } },
+          include: {
+            paymentMethod: { select: { name: true } },
+            referralPartner: { select: { name: true } },
+          },
         },
       },
     }),
     prisma.paymentMethod.findMany({
+      where: { status: "ACTIVE" },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    prisma.referralPartner.findMany({
       where: { status: "ACTIVE" },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
@@ -40,9 +48,12 @@ export default async function ClientsPage() {
       effectiveTo: r.effectiveTo ? format(r.effectiveTo, "yyyy-MM-dd") : null,
       ratePercent: r.ratePercent.toString(),
       feeBasis: r.feeBasis,
+      referralPartnerId: r.referralPartnerId,
+      referralPartnerRatePercent: r.referralPartnerRatePercent?.toString() ?? null,
       paymentMethod: r.paymentMethod,
+      referralPartner: r.referralPartner,
     })),
   }));
 
-  return <ClientsClient rows={rows} paymentMethods={paymentMethods} />;
+  return <ClientsClient rows={rows} paymentMethods={paymentMethods} referralPartners={referralPartners} />;
 }

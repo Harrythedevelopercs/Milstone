@@ -18,6 +18,7 @@ import {
   calculateMerchantFeeFromRule,
   calculateNetAmountReceived,
   calculatePercentAmount,
+  splitFpFee,
 } from "@/lib/transactions/money-math";
 import { getRoundingConfig, roundMoney } from "@/lib/transactions/rounding";
 import { assertMonthOpen } from "@/lib/month-close/guard";
@@ -189,6 +190,26 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
     feeBearer: d.feeBearer,
   });
 
+  // Split of fpFee between a referral partner's share and FoundaPay's own
+  // revenue, re-resolved from the rate period in effect for this
+  // (possibly edited) transaction date -- see
+  // src/lib/transactions/money-math.ts. foundapayPureFee is the remainder
+  // of the two already-rounded stored figures, so the two always sum to
+  // the stored fpFee exactly.
+  const fpFeeStored = roundMoney(fpFee, roundingMode);
+  const referralPartnerFeeStored = roundMoney(
+    splitFpFee({
+      fpFee,
+      gross,
+      merchantFee,
+      feeBasis: d.feeBasis,
+      chargeType: d.chargeType,
+      referralPartnerRatePercent: rate.referralPartnerRatePercent,
+    }).referralPartnerFee,
+    roundingMode
+  );
+  const foundapayPureFeeStored = new Decimal(fpFeeStored).minus(referralPartnerFeeStored).toFixed(2);
+
   const oldClientNetPayable = new Decimal(existing.clientNetPayable ?? 0);
   const newClientNetPayable = new Decimal(clientNetPayable);
   const clientChanged = existing.clientId !== d.clientId;
@@ -221,7 +242,11 @@ export async function updateTransaction(id: string, input: unknown): Promise<Cre
         fpRatePercent: rate.ratePercent,
         feeBasis: d.feeBasis,
         netAmountReceived: roundMoney(netAmountReceived, roundingMode),
-        fpFee: roundMoney(fpFee, roundingMode),
+        fpFee: fpFeeStored,
+        referralPartnerId: rate.referralPartnerId,
+        referralPartnerRatePercent: rate.referralPartnerRatePercent,
+        referralPartnerFee: referralPartnerFeeStored,
+        foundapayPureFee: foundapayPureFeeStored,
         chargeType: d.chargeType,
         fixedChargeAmount: d.chargeType === "FIXED" ? roundMoney(d.fixedChargeAmount || 0, roundingMode) : null,
         merchantFeeManual: merchantFeeManualProvided ? d.merchantFeeManual! : null,
@@ -1203,6 +1228,10 @@ export type TransactionFullDetail = {
   feeBasis: "GROSS" | "AFTER_MERCHANT_CHARGES";
   netAmountReceived: string;
   fpFee: string;
+  referralPartnerName: string | null;
+  referralPartnerRatePercent: string | null;
+  referralPartnerFee: string;
+  foundapayPureFee: string;
   chargeType: "PERCENTAGE" | "FIXED" | "NONE";
   fixedChargeAmount: string | null;
   merchantFeeManual: string | null;
@@ -1272,6 +1301,7 @@ export async function getTransactionFullDetail(id: string): Promise<TransactionD
         approvedBy: { select: { name: true } },
         updatedBy: { select: { name: true } },
         reserveHolds: { select: { direction: true } },
+        referralPartner: { select: { name: true } },
       },
     }),
     prisma.client.findMany({ where: { status: "ACTIVE" }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -1321,6 +1351,10 @@ export async function getTransactionFullDetail(id: string): Promise<TransactionD
       feeBasis: txn.feeBasis,
       netAmountReceived: txn.netAmountReceived.toString(),
       fpFee: txn.fpFee.toString(),
+      referralPartnerName: txn.referralPartner?.name ?? null,
+      referralPartnerRatePercent: txn.referralPartnerRatePercent?.toString() ?? null,
+      referralPartnerFee: txn.referralPartnerFee.toString(),
+      foundapayPureFee: txn.foundapayPureFee.toString(),
       chargeType: txn.chargeType,
       fixedChargeAmount: txn.fixedChargeAmount?.toString() ?? null,
       merchantFeeManual: txn.merchantFeeManual?.toString() ?? null,

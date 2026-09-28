@@ -1,4 +1,4 @@
-import type Decimal from "decimal.js";
+import Decimal from "decimal.js";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit-log";
 import { assertMonthOpen } from "@/lib/month-close/guard";
@@ -14,6 +14,7 @@ import {
   calculateNetAmountReceived,
   calculatePercentAmount,
   calculateMerchantFeeFromRule,
+  splitFpFee,
   money,
   type FeeBasis,
 } from "./money-math";
@@ -187,6 +188,26 @@ export async function createTransactionCore(
     feeBearer: input.feeBearer,
   });
 
+  // Split of fpFee between a referral partner's share and FoundaPay's own
+  // revenue, snapshotted from the rate period in effect -- see
+  // src/lib/transactions/money-math.ts. foundapayPureFee is defined as the
+  // remainder of the two already-rounded stored figures (not rounded
+  // independently), so referralPartnerFee + foundapayPureFee always equals
+  // the stored fpFee exactly.
+  const fpFeeStored = roundMoney(fpFee, roundingMode);
+  const referralPartnerFeeStored = roundMoney(
+    splitFpFee({
+      fpFee,
+      gross,
+      merchantFee,
+      feeBasis: input.feeBasis,
+      chargeType,
+      referralPartnerRatePercent: rate.referralPartnerRatePercent,
+    }).referralPartnerFee,
+    roundingMode
+  );
+  const foundapayPureFeeStored = new Decimal(fpFeeStored).minus(referralPartnerFeeStored).toFixed(2);
+
   const isAutoApproved = input.status === "APPROVED";
   // A direct payment's cash is already in the bank the moment it's approved
   // -- there's no processor deposit to wait on, so it goes straight to
@@ -212,7 +233,11 @@ export async function createTransactionCore(
         fpRatePercent: rate.ratePercent,
         feeBasis: input.feeBasis,
         netAmountReceived: roundMoney(netAmountReceived, roundingMode),
-        fpFee: roundMoney(fpFee, roundingMode),
+        fpFee: fpFeeStored,
+        referralPartnerId: rate.referralPartnerId,
+        referralPartnerRatePercent: rate.referralPartnerRatePercent,
+        referralPartnerFee: referralPartnerFeeStored,
+        foundapayPureFee: foundapayPureFeeStored,
         chargeType,
         fixedChargeAmount: chargeType === "FIXED" ? roundMoney(input.fixedChargeAmount ?? 0, roundingMode) : null,
         merchantFeeManual: merchantFeeManualProvided ? input.merchantFeeManual! : null,

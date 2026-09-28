@@ -253,8 +253,18 @@ model ClientRateHistory {
   notes           String?
   createdAt       DateTime  @default(now()) @map("created_at")
 
-  client        Client        @relation(fields: [clientId], references: [id])
-  paymentMethod PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  // Optional split of ratePercent above: a referral partner's share of the
+  // combined rate (e.g. Nimra Kashif = Kamal 2% + FoundaPay pure 7.5% =
+  // 9.5% combined). Null referralPartnerId = no referral partner, the
+  // entire rate is FoundaPay's own revenue. The combined ratePercent still
+  // drives the client's fee/payout exactly as before -- this only records
+  // who the fee belongs to.
+  referralPartnerId          String?  @map("referral_partner_id")
+  referralPartnerRatePercent Decimal? @map("referral_partner_rate_percent") @db.Decimal(5, 2)
+
+  client          Client           @relation(fields: [clientId], references: [id])
+  paymentMethod   PaymentMethod    @relation(fields: [paymentMethodId], references: [id])
+  referralPartner ReferralPartner? @relation(fields: [referralPartnerId], references: [id])
 
   @@index([clientId, paymentMethodId, effectiveFrom])
   @@map("client_rate_history")
@@ -472,6 +482,25 @@ model ExpenseCategory {
   @@map("expense_categories")
 }
 
+// An external person/company who earns a referral share of FoundaPay's fee
+// on a specific client's transactions (e.g. Kamal earning 2% out of Nimra
+// Kashif's 9.5% combined rate) -- deliberately separate from Employee
+// (FoundaPay's own payroll staff) and Partner (equity/profit-share owners),
+// since a referral relationship is neither.
+model ReferralPartner {
+  id        String       @id @default(cuid())
+  name      String
+  status    RecordStatus @default(ACTIVE)
+  notes     String?
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  rateHistoryEntries ClientRateHistory[]
+  transactions       Transaction[]
+
+  @@map("referral_partners")
+}
+
 model Vendor {
   id        String       @id @default(cuid())
   name      String
@@ -589,6 +618,18 @@ model Transaction {
   netAmountReceived Decimal  @map("net_amount_received") @db.Decimal(18, 2)
   fpFee             Decimal  @map("fp_fee") @db.Decimal(18, 2)
 
+  // Split of fpFee above between a referral partner's share and FoundaPay's
+  // own revenue -- snapshotted at entry/edit time from the client rate
+  // period in effect, same as fpRatePercent itself. Always
+  // referralPartnerFee + foundapayPureFee == fpFee exactly; null
+  // referralPartnerId means no referral partner (foundapayPureFee == fpFee,
+  // referralPartnerFee == 0). This never changes what the client is
+  // charged -- fpFee (and clientNetPayable) are computed exactly as before.
+  referralPartnerId          String?  @map("referral_partner_id")
+  referralPartnerRatePercent Decimal? @map("referral_partner_rate_percent") @db.Decimal(5, 2)
+  referralPartnerFee         Decimal  @default(0) @map("referral_partner_fee") @db.Decimal(18, 2)
+  foundapayPureFee           Decimal  @map("foundapay_pure_fee") @db.Decimal(18, 2)
+
   // Defaults to PERCENTAGE (fpRatePercent x feeBasis, the client's configured
   // rate). FIXED overrides fpFee with fixedChargeAmount regardless of gross;
   // NONE forces fpFee to 0. fpFee itself always holds the final computed
@@ -647,6 +688,7 @@ model Transaction {
   businessUnit    BusinessUnit?    @relation(fields: [businessUnitId], references: [id])
   paymentMethod   PaymentMethod    @relation(fields: [paymentMethodId], references: [id])
   settlementBatch SettlementBatch? @relation(fields: [settlementBatchId], references: [id])
+  referralPartner ReferralPartner? @relation(fields: [referralPartnerId], references: [id])
 
   createdBy  User  @relation("TxnCreatedBy", fields: [createdById], references: [id])
   updatedBy  User? @relation("TxnUpdatedBy", fields: [updatedById], references: [id])

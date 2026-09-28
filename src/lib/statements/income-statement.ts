@@ -7,6 +7,15 @@ export type IncomeStatementLine = { label: string; amount: Decimal };
 export type IncomeStatementResult = {
   revenueLines: IncomeStatementLine[];
   revenue: Decimal;
+  // Of revenue's "FP Fee Revenue" line (the combined rate charged to
+  // clients, e.g. 9.5%): how much is owed out to referral partners (e.g.
+  // Kamal's 2%) vs how much is FoundaPay's own true revenue (e.g. the
+  // remaining 7.5%). referralPartnerCommission is also included as its own
+  // COGS line below, same treatment as Employee-Partner Commission --
+  // these two fields are purely for a clear side-by-side, not a separate
+  // deduction.
+  referralPartnerCommission: Decimal;
+  revenueNetOfReferral: Decimal;
   cogsLines: IncomeStatementLine[];
   cogs: Decimal;
   grossProfit: Decimal;
@@ -28,6 +37,7 @@ export async function calculateIncomeStatement(accountingMonth: string): Promise
 
   const [
     fpFeeAgg,
+    referralCommissionAgg,
     productSalesAgg,
     merchantFeesFpBearsAgg,
     epCommissionAgg,
@@ -38,6 +48,7 @@ export async function calculateIncomeStatement(accountingMonth: string): Promise
     reserveWriteOffsAgg,
   ] = await Promise.all([
     prisma.transaction.aggregate({ where: txnWhere, _sum: { fpFee: true } }),
+    prisma.transaction.aggregate({ where: txnWhere, _sum: { referralPartnerFee: true } }),
     prisma.productServiceSale.aggregate({
       where: { accountingMonth },
       _sum: { totalRevenue: true, totalCost: true },
@@ -79,11 +90,13 @@ export async function calculateIncomeStatement(accountingMonth: string): Promise
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
 
   const fpFeeRevenue = new Decimal(fpFeeAgg._sum.fpFee ?? 0);
+  const referralPartnerCommission = new Decimal(referralCommissionAgg._sum.referralPartnerFee ?? 0);
+  const revenueNetOfReferral = fpFeeRevenue.minus(referralPartnerCommission);
   const productGrossProfit = new Decimal(productSalesAgg._sum.totalRevenue ?? 0).minus(
     productSalesAgg._sum.totalCost ?? 0
   );
   const revenueLines: IncomeStatementLine[] = [
-    { label: "FP Fee Revenue", amount: fpFeeRevenue },
+    { label: "FP Fee Revenue (gross, combined client rate)", amount: fpFeeRevenue },
     ...(productGrossProfit.isZero() ? [] : [{ label: "Product/Service Gross Profit", amount: productGrossProfit }]),
   ];
   const revenue = revenueLines.reduce((sum, l) => sum.plus(l.amount), new Decimal(0));
@@ -91,6 +104,7 @@ export async function calculateIncomeStatement(accountingMonth: string): Promise
   const cogsLines: IncomeStatementLine[] = [
     { label: "Merchant Fees FP Bears", amount: new Decimal(merchantFeesFpBearsAgg._sum.merchantFee ?? 0) },
     { label: "Employee-Partner Commission", amount: new Decimal(epCommissionAgg._sum.amount ?? 0) },
+    { label: "Referral Partner Commission", amount: referralPartnerCommission },
     // Gross reversed transaction value for the period -- FP's own fee stays
     // recognized as revenue per policy (refunds/chargebacks don't reverse
     // it), so this line is the client-side amount reversed, not a claim
@@ -114,5 +128,16 @@ export async function calculateIncomeStatement(accountingMonth: string): Promise
 
   const netProfit = grossProfit.minus(opex);
 
-  return { revenueLines, revenue, cogsLines, cogs, grossProfit, opexLines, opex, netProfit };
+  return {
+    revenueLines,
+    revenue,
+    referralPartnerCommission,
+    revenueNetOfReferral,
+    cogsLines,
+    cogs,
+    grossProfit,
+    opexLines,
+    opex,
+    netProfit,
+  };
 }

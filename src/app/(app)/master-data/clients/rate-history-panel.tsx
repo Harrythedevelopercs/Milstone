@@ -34,7 +34,10 @@ export type RateHistoryRow = {
   effectiveTo: string | null;
   ratePercent: string;
   feeBasis: "GROSS" | "AFTER_MERCHANT_CHARGES";
+  referralPartnerId: string | null;
+  referralPartnerRatePercent: string | null;
   paymentMethod: { name: string };
+  referralPartner: { name: string } | null;
 };
 
 const FEE_BASIS_LABEL: Record<string, string> = {
@@ -47,14 +50,18 @@ const FEE_BASIS_ITEMS = [
   { value: "AFTER_MERCHANT_CHARGES", label: "After Merchant Charges" },
 ];
 
+const NO_REFERRAL_PARTNER = "none";
+
 export function RateHistoryPanel({
   clientId,
   rates,
   paymentMethods,
+  referralPartners,
 }: {
   clientId: string;
   rates: RateHistoryRow[];
   paymentMethods: { id: string; name: string }[];
+  referralPartners: { id: string; name: string }[];
 }) {
   const { run, isPending } = useCrudAction();
 
@@ -62,10 +69,17 @@ export function RateHistoryPanel({
     rates.filter((r) => r.effectiveTo === null).map((r) => [r.paymentMethodId, r])
   );
 
+  const referralPartnerItems = [
+    { value: NO_REFERRAL_PARTNER, label: "None (FoundaPay pure revenue)" },
+    ...referralPartners.map((p) => ({ value: p.id, label: p.name })),
+  ];
+
   const defaultEntries = paymentMethods.map((m) => ({
     paymentMethodId: m.id,
     ratePercent: "",
     feeBasis: "GROSS" as const,
+    referralPartnerId: "",
+    referralPartnerRatePercent: "",
   }));
 
   const form = useForm<ClientRateBatchFormValues>({
@@ -101,6 +115,14 @@ export function RateHistoryPanel({
           { key: "method", header: "Method", render: (r) => r.paymentMethod.name },
           { key: "rate", header: "Rate", render: (r) => `${r.ratePercent}%` },
           { key: "basis", header: "Basis", render: (r) => FEE_BASIS_LABEL[r.feeBasis] },
+          {
+            key: "referral",
+            header: "Referral Split",
+            render: (r) =>
+              r.referralPartner
+                ? `${r.referralPartner.name} ${r.referralPartnerRatePercent}% / FP ${(Number(r.ratePercent) - Number(r.referralPartnerRatePercent)).toFixed(2)}%`
+                : "—",
+          },
           { key: "from", header: "From", render: (r) => r.effectiveFrom },
           { key: "to", header: "To", render: (r) => r.effectiveTo ?? "current" },
         ]}
@@ -146,6 +168,26 @@ export function RateHistoryPanel({
                         <FieldHint>
                           Gross: the rate applies to the full transaction amount. After Merchant Charges: the
                           rate applies only after the merchant&apos;s own fee is deducted.
+                        </FieldHint>
+                      </span>
+                    </th>
+                    <th className="px-3 py-2 text-left font-medium">
+                      <span className="inline-flex items-center gap-1">
+                        Referral Partner
+                        <FieldHint>
+                          Optional -- if part of Rate % above is a referral commission owed to someone else
+                          (e.g. Kamal earning 2% of Nimra Kashif&apos;s 9.5% combined rate), pick them here.
+                          Leave as &quot;None&quot; if the whole rate is FoundaPay&apos;s own revenue.
+                        </FieldHint>
+                      </span>
+                    </th>
+                    <th className="px-3 py-2 text-left font-medium">
+                      <span className="inline-flex items-center gap-1">
+                        Referral %
+                        <FieldHint>
+                          The referral partner&apos;s share of Rate % above (must be less than or equal to
+                          it). The rest of Rate % is FoundaPay&apos;s own revenue -- the client is still
+                          charged the full Rate % either way, this only records who the fee belongs to.
                         </FieldHint>
                       </span>
                     </th>
@@ -210,6 +252,55 @@ export function RateHistoryPanel({
                                     </SelectItem>
                                   </SelectContent>
                                 </Select>
+                              </FormItem>
+                            )}
+                          />
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <FormField
+                            control={form.control}
+                            name={`entries.${i}.referralPartnerId`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <Select
+                                  value={field.value || NO_REFERRAL_PARTNER}
+                                  onValueChange={(v) => field.onChange(v === NO_REFERRAL_PARTNER ? "" : v)}
+                                  items={referralPartnerItems}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger className="w-full min-w-44">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {referralPartnerItems.map((item) => (
+                                      <SelectItem key={item.value} value={item.value}>
+                                        {item.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormItem>
+                            )}
+                          />
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <FormField
+                            control={form.control}
+                            name={`entries.${i}.referralPartnerRatePercent`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    placeholder="blank"
+                                    className="w-24"
+                                  />
+                                </FormControl>
+                                <FormMessage />
                               </FormItem>
                             )}
                           />

@@ -30,9 +30,11 @@ export type ClientRow = {
 export function ClientsClient({
   rows,
   paymentMethods,
+  referralPartners,
 }: {
   rows: ClientRow[];
   paymentMethods: { id: string; name: string }[];
+  referralPartners: { id: string; name: string }[];
 }) {
   const [editing, setEditing] = useState<ClientRow | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -151,6 +153,7 @@ export function ClientsClient({
             clientId={rateClient.id}
             rates={rateClient.rateHistory}
             paymentMethods={paymentMethods}
+            referralPartners={referralPartners}
           />
         )}
       </CrudSheet>

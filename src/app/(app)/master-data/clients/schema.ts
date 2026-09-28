@@ -28,16 +28,37 @@ export type ClientFormValues = z.infer<typeof clientSchema>;
 // One row per payment method; ratePercent left as "" means "no rate set for
 // this method" (not zero) -- the rate lookup already treats a missing rate
 // as a hard stop when a transaction tries to use that method.
-const clientRateEntrySchema = z.object({
-  paymentMethodId: z.string().trim().min(1),
-  ratePercent: z
-    .string()
-    .trim()
-    .refine((v) => v === "" || (!Number.isNaN(Number(v)) && Number(v) >= 0), {
-      message: "Must be a positive number",
-    }),
-  feeBasis: z.enum(["GROSS", "AFTER_MERCHANT_CHARGES"]),
-});
+const clientRateEntrySchema = z
+  .object({
+    paymentMethodId: z.string().trim().min(1),
+    ratePercent: z
+      .string()
+      .trim()
+      .refine((v) => v === "" || (!Number.isNaN(Number(v)) && Number(v) >= 0), {
+        message: "Must be a positive number",
+      }),
+    feeBasis: z.enum(["GROSS", "AFTER_MERCHANT_CHARGES"]),
+    // Optional split of ratePercent above: a referral partner's share of
+    // the combined rate. "" referralPartnerId means no referral partner --
+    // the whole rate is FoundaPay's own revenue.
+    referralPartnerId: z.string().trim().optional().or(z.literal("")),
+    referralPartnerRatePercent: z
+      .string()
+      .trim()
+      .refine((v) => v === "" || (!Number.isNaN(Number(v)) && Number(v) >= 0), {
+        message: "Must be a positive number",
+      }),
+  })
+  .refine(
+    (e) =>
+      e.referralPartnerRatePercent === "" ||
+      e.ratePercent === "" ||
+      Number(e.referralPartnerRatePercent) <= Number(e.ratePercent),
+    {
+      message: "Referral partner's share can't exceed the total rate.",
+      path: ["referralPartnerRatePercent"],
+    }
+  );
 
 export const clientRateBatchSchema = z
   .object({
