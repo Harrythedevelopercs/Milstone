@@ -320,7 +320,7 @@ export function PayoutForm({
               name="bankAccountId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel hint="Which of FoundaPay's bank accounts the payout goes out of.">Paid from</FormLabel>
+                  <FormLabel hint="Which of FoundaPay's accounts the payout goes out of -- a bank account, a USDT wallet, or cash position. Paying from cash doesn't touch any bank balance.">Paid from</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
