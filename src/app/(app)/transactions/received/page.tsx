@@ -53,13 +53,20 @@ function statusLabel(status: string) {
     .join(" ");
 }
 
+const SORT_FIELDS = { transactionDate: "transactionDate", entryDate: "createdAt" } as const;
+type SortKey = keyof typeof SORT_FIELDS;
+
 type SearchParams = {
   from?: string;
   to?: string;
+  entryFrom?: string;
+  entryTo?: string;
   status?: string;
   merchantId?: string;
   clientId?: string;
   paymentMethodId?: string;
+  sort?: string;
+  dir?: string;
   page?: string;
 };
 
@@ -69,14 +76,23 @@ export default async function ReceivedTransactionsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const sp = await searchParams;
-  const { from, to, status, merchantId, clientId, paymentMethodId } = sp;
+  const { from, to, entryFrom, entryTo, status, merchantId, clientId, paymentMethodId } = sp;
   const fromDate = from ? new Date(from) : null;
   const toDate = to ? new Date(to) : null;
+  const entryFromDate = entryFrom ? new Date(entryFrom) : null;
+  const entryToDate = entryTo ? new Date(entryTo) : null;
   const page = Math.max(1, Number(sp.page) || 1);
+  // Entry date is auto-captured at creation (createdAt) and never editable --
+  // Transaction date is the customer's payment date, entered/edited by hand.
+  const sortKey: SortKey = sp.sort === "entryDate" ? "entryDate" : "transactionDate";
+  const sortDir: "asc" | "desc" = sp.dir === "asc" ? "asc" : "desc";
 
   const where = {
     ...(fromDate || toDate
       ? { transactionDate: { ...(fromDate ? { gte: fromDate } : {}), ...(toDate ? { lte: toDate } : {}) } }
+      : {}),
+    ...(entryFromDate || entryToDate
+      ? { createdAt: { ...(entryFromDate ? { gte: entryFromDate } : {}), ...(entryToDate ? { lte: entryToDate } : {}) } }
       : {}),
     ...(status ? { status: status as never } : {}),
     ...(merchantId ? { merchantId: merchantId === "DIRECT" ? null : merchantId } : {}),
@@ -88,7 +104,7 @@ export default async function ReceivedTransactionsPage({
     await Promise.all([
       prisma.transaction.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy: { [SORT_FIELDS[sortKey]]: sortDir },
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
         include: {
@@ -148,16 +164,40 @@ export default async function ReceivedTransactionsPage({
     paymentMethodId,
   };
 
-  function pageHref(p: number) {
+  function baseQuery() {
     const query = new URLSearchParams();
     if (from) query.set("from", from);
     if (to) query.set("to", to);
+    if (entryFrom) query.set("entryFrom", entryFrom);
+    if (entryTo) query.set("entryTo", entryTo);
     if (status) query.set("status", status);
     if (merchantId) query.set("merchantId", merchantId);
     if (clientId) query.set("clientId", clientId);
     if (paymentMethodId) query.set("paymentMethodId", paymentMethodId);
+    if (sp.sort) query.set("sort", sp.sort);
+    if (sp.dir) query.set("dir", sp.dir);
+    return query;
+  }
+
+  function pageHref(p: number) {
+    const query = baseQuery();
     query.set("page", String(p));
     return `/transactions/received?${query.toString()}`;
+  }
+
+  // Toggles the sort column, or flips direction if already sorting by it --
+  // page resets to 1 since the row order (and therefore what's "page 2") changes.
+  function sortHref(key: SortKey) {
+    const query = baseQuery();
+    query.set("sort", key);
+    query.set("dir", sortKey === key && sortDir === "desc" ? "asc" : "desc");
+    query.delete("page");
+    return `/transactions/received?${query.toString()}`;
+  }
+
+  function sortIndicator(key: SortKey) {
+    if (sortKey !== key) return "";
+    return sortDir === "desc" ? " ↓" : " ↑";
   }
 
   return (
@@ -207,6 +247,30 @@ export default async function ReceivedTransactionsPage({
               name="to"
               type="date"
               defaultValue={to}
+              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="entryFrom" className="text-xs text-muted-foreground">
+              Entry from
+            </label>
+            <input
+              id="entryFrom"
+              name="entryFrom"
+              type="date"
+              defaultValue={entryFrom}
+              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="entryTo" className="text-xs text-muted-foreground">
+              Entry to
+            </label>
+            <input
+              id="entryTo"
+              name="entryTo"
+              type="date"
+              defaultValue={entryTo}
               className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
             />
           </div>
@@ -283,10 +347,12 @@ export default async function ReceivedTransactionsPage({
               ))}
             </select>
           </div>
+          {sp.sort && <input type="hidden" name="sort" value={sp.sort} />}
+          {sp.dir && <input type="hidden" name="dir" value={sp.dir} />}
           <button type="submit" className="h-8 rounded-lg border border-input px-3 text-sm hover:bg-muted">
             Filter
           </button>
-          {(from || to || status || merchantId || clientId || paymentMethodId) && (
+          {(from || to || entryFrom || entryTo || status || merchantId || clientId || paymentMethodId) && (
             <Link href="/transactions/received" className="h-8 px-3 text-sm text-muted-foreground underline self-center">
               Clear
             </Link>
@@ -302,7 +368,16 @@ export default async function ReceivedTransactionsPage({
           <TableHeader>
             <TableRow>
               <TableHead>ID</TableHead>
-              <TableHead>Date</TableHead>
+              <TableHead>
+                <Link href={sortHref("transactionDate")} className="hover:underline">
+                  Date{sortIndicator("transactionDate")}
+                </Link>
+              </TableHead>
+              <TableHead>
+                <Link href={sortHref("entryDate")} className="hover:underline" title="When this transaction was entered into the software -- not editable.">
+                  Entry date{sortIndicator("entryDate")}
+                </Link>
+              </TableHead>
               <TableHead>Client</TableHead>
               <TableHead>Merchant</TableHead>
               <TableHead>Method</TableHead>
@@ -325,12 +400,13 @@ export default async function ReceivedTransactionsPage({
           </TableHeader>
           <TableBody>
             {transactions.length === 0 ? (
-              <EmptyTableRow colSpan={20} message="No transactions match these filters." />
+              <EmptyTableRow colSpan={21} message="No transactions match these filters." />
             ) : (
               transactions.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell className="font-mono text-xs">{t.id}</TableCell>
                   <TableCell>{format(t.transactionDate, "yyyy-MM-dd")}</TableCell>
+                  <TableCell className="text-muted-foreground">{format(t.createdAt, "yyyy-MM-dd")}</TableCell>
                   <TableCell>{t.client.name}</TableCell>
                   <TableCell>{t.merchant?.name ?? "Direct"}</TableCell>
                   <TableCell>{t.paymentMethod.name}</TableCell>

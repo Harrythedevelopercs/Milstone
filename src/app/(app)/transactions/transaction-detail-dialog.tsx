@@ -170,6 +170,7 @@ export function TransactionDetailDialog({
                 <Field label="Transaction ID" value={t.id} />
                 <Field label="Accounting month" value={t.accountingMonth} />
                 <Field label="Transaction date" value={format(new Date(t.transactionDate), "yyyy-MM-dd")} />
+                <Field label="Entry date (auto, not editable)" value={format(new Date(t.createdAt), "yyyy-MM-dd")} />
                 <Field label="Client" value={t.clientName} />
                 <Field label="Client reference" value={t.clientReference} />
                 <Field label="Merchant" value={t.merchantName ?? "Direct (no merchant)"} />
