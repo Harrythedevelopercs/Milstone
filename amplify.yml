@@ -4,8 +4,8 @@ frontend:
     preBuild:
       commands:
         - nvm use 20 || nvm install 20
-        - corepack enable
-        - corepack prepare pnpm@latest --activate
+        - corepack disable || true
+        - npm install -g pnpm@latest
         - pnpm config set store-dir .pnpm-store
         - pnpm config set node-linker hoisted
         - pnpm install
