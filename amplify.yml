@@ -1,0 +1,23 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - nvm use 20 || nvm install 20
+        - corepack enable
+        - corepack prepare pnpm@latest --activate
+        - pnpm config set store-dir .pnpm-store
+        - pnpm config set node-linker hoisted
+        - pnpm install
+    build:
+      commands:
+        - env | grep -E '^(DATABASE_URL|AUTH_SECRET)' >> .env.production || true
+        - pnpm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - .next/cache/**/*
+      - .pnpm-store/**/*
