@@ -1,6 +1,10 @@
 import NextAuth from "next-auth";
 import { authConfig } from "@/auth.config";
 
+if (!process.env.AUTH_TRUST_HOST) {
+  process.env.AUTH_TRUST_HOST = "true";
+}
+
 export default NextAuth(authConfig).auth;
 
 export const config = {

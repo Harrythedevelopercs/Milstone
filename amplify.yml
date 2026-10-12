@@ -8,7 +8,11 @@ frontend:
         - pnpm install
     build:
       commands:
-        - env | grep -E '^(DATABASE_URL|AUTH_SECRET)' >> .env.production || true
+        - echo "DATABASE_URL=${DATABASE_URL:-postgresql://neondb_owner:npg_baVm3rz1LYpg@ep-falling-block-axoykj3b-pooler.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require}" >> .env.production
+        - echo "AUTH_SECRET=${AUTH_SECRET:-/k61dCV/sZHWk/+qSz9vKNeL9kf3xV100wKZ5NfJcIY=}" >> .env.production
+        - echo "AUTH_TRUST_HOST=true" >> .env.production
+        - echo "AUTH_URL=${AUTH_URL:-https://main.d3tum10bqcbo66.amplifyapp.com}" >> .env.production
+        - cp .env.production .env || true
         - pnpm run build
   artifacts:
     baseDirectory: .next

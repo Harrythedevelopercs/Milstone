@@ -1,5 +1,9 @@
 import type { NextAuthConfig } from "next-auth";
 
+if (!process.env.AUTH_TRUST_HOST) {
+  process.env.AUTH_TRUST_HOST = "true";
+}
+
 // Split out from auth.ts because middleware (edge runtime) can't load the
 // Prisma/bcrypt-based Credentials provider -- only this lightweight config.
 export const authConfig = {
