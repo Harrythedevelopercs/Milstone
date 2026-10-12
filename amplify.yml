@@ -4,10 +4,7 @@ frontend:
     preBuild:
       commands:
         - nvm use 20 || nvm install 20
-        - corepack disable || true
         - npm install -g pnpm@latest
-        - pnpm config set store-dir .pnpm-store
-        - pnpm config set node-linker hoisted
         - pnpm install
     build:
       commands:
@@ -20,4 +17,4 @@ frontend:
   cache:
     paths:
       - .next/cache/**/*
-      - .pnpm-store/**/*
+      - node_modules/**/*
