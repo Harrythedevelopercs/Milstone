@@ -16,8 +16,17 @@ frontend:
         - pnpm run build
         - cp .env.production .next/.env.production || true
         - cp .env.production .next/.env || true
-        - cp .env.production .next/standalone/.env.production 2>/dev/null || true
-        - cp .env.production .next/standalone/.env 2>/dev/null || true
+        - mkdir -p .next/node_modules
+        - cp -r node_modules/pg* .next/node_modules/ 2>/dev/null || true
+        - cp -r node_modules/postgres-* .next/node_modules/ 2>/dev/null || true
+        - |
+          for d in .next/node_modules/pg-*; do
+            if [ -d "$d" ]; then
+              mkdir -p "$d/node_modules"
+              cp -r node_modules/pg* "$d/node_modules/" 2>/dev/null || true
+              cp -r node_modules/postgres-* "$d/node_modules/" 2>/dev/null || true
+            fi
+          done
   artifacts:
     baseDirectory: .next
     files:

@@ -1,6 +1,18 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: [
+    "pg",
+    "pg-types",
+    "pg-pool",
+    "pg-protocol",
+    "pg-connection-string",
+    "pgpass",
+    "postgres-array",
+    "postgres-bytea",
+    "postgres-date",
+    "postgres-interval",
+  ],
   env: {
     DATABASE_URL:
       process.env.DATABASE_URL ||
