@@ -7,10 +7,17 @@ import { prisma } from "@/lib/prisma";
 if (!process.env.AUTH_TRUST_HOST) {
   process.env.AUTH_TRUST_HOST = "true";
 }
+if (!process.env.AUTH_SECRET) {
+  process.env.AUTH_SECRET = "/k61dCV/sZHWk/+qSz9vKNeL9kf3xV100wKZ5NfJcIY=";
+}
+if (!process.env.AUTH_URL) {
+  process.env.AUTH_URL = "https://main.d3tum10bqcbo66.amplifyapp.com";
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   trustHost: true,
+  secret: process.env.AUTH_SECRET || "/k61dCV/sZHWk/+qSz9vKNeL9kf3xV100wKZ5NfJcIY=",
   providers: [
     Credentials({
       credentials: {

@@ -14,6 +14,10 @@ frontend:
         - echo "AUTH_URL=${AUTH_URL:-https://main.d3tum10bqcbo66.amplifyapp.com}" >> .env.production
         - cp .env.production .env || true
         - pnpm run build
+        - cp .env.production .next/.env.production || true
+        - cp .env.production .next/.env || true
+        - cp .env.production .next/standalone/.env.production 2>/dev/null || true
+        - cp .env.production .next/standalone/.env 2>/dev/null || true
   artifacts:
     baseDirectory: .next
     files:

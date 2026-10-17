@@ -10,10 +10,24 @@ export async function loginAction(_prevState: string | undefined, formData: Form
       password: formData.get("password"),
       redirectTo: "/",
     });
-  } catch (error) {
-    if (error instanceof AuthError) {
+  } catch (error: any) {
+    const isRedirect =
+      error?.digest?.startsWith?.("NEXT_REDIRECT") ||
+      error?.message === "NEXT_REDIRECT";
+    if (isRedirect) {
+      throw error;
+    }
+
+    if (
+      error instanceof AuthError ||
+      error?.type === "CredentialsSignin" ||
+      error?.name === "CredentialsSignin" ||
+      error?.code === "credentials"
+    ) {
       return "Invalid email or password.";
     }
-    throw error;
+
+    console.error("Login action error:", error);
+    return "Invalid email or password.";
   }
 }
