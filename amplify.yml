@@ -5,7 +5,7 @@ frontend:
       commands:
         - nvm use 20 || nvm install 20
         - npm install -g pnpm@latest
-        - pnpm install --shamefully-hoist
+        - pnpm install --shamefully-hoist --no-frozen-lockfile
     build:
       commands:
         - echo "DATABASE_URL=${DATABASE_URL:-postgresql://neondb_owner:npg_baVm3rz1LYpg@ep-falling-block-axoykj3b-pooler.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require}" >> .env.production
@@ -19,12 +19,16 @@ frontend:
         - mkdir -p .next/node_modules
         - cp -r node_modules/pg* .next/node_modules/ 2>/dev/null || true
         - cp -r node_modules/postgres-* .next/node_modules/ 2>/dev/null || true
+        - cp -r node_modules/split2 .next/node_modules/ 2>/dev/null || true
+        - cp -r node_modules/obuf .next/node_modules/ 2>/dev/null || true
         - |
-          for d in .next/node_modules/pg-*; do
+          for d in .next/node_modules/pg-* .next/node_modules/postgres-*; do
             if [ -d "$d" ]; then
               mkdir -p "$d/node_modules"
               cp -r node_modules/pg* "$d/node_modules/" 2>/dev/null || true
               cp -r node_modules/postgres-* "$d/node_modules/" 2>/dev/null || true
+              cp -r node_modules/split2 "$d/node_modules/" 2>/dev/null || true
+              cp -r node_modules/obuf "$d/node_modules/" 2>/dev/null || true
             fi
           done
   artifacts:
